@@ -163,6 +163,14 @@ def _is_marked(R, pts, base):
     return max(float((_patch(R, x, y) < base * .72).mean()) for x, y in pts) >= .30
 
 
+def _portrait_marked(R, x, y, base):
+    """Detect a dark filled bubble while ignoring printed option text and paper tint."""
+    patch = _patch(R, x, y, 9)
+    mean = float(patch.mean())
+    dark_fraction = float((patch < min(75, base * .65)).mean())
+    return mean < min(40, base * .38) and dark_fraction >= .45
+
+
 def _portrait_points():
     """Answer positions for the common 30-question portrait sheet: two blocks of 15."""
     xs = ([.19, .232, .276, .318], [.442, .480, .520, .560])
@@ -244,8 +252,15 @@ def _scan_answers(R, points, n, key, width, snapped=None):
         block = (q // block_size) * block_size
         lo, hi = max(block, q - 3), min(block + block_size, q + 4)
         base = np.median(inner[lo:hi])
-        mk = [k for k in range(4) if _is_marked(
-            R, (pts[q, k],) if snapped is None else (pts[q, k], snapped[q, k]), base)]
+        if width == 1000:
+            mk = []
+            for k in range(4):
+                candidates = (pts[q, k],) if snapped is None else (pts[q, k], snapped[q, k])
+                if any(_portrait_marked(R, x, y, base) for x, y in candidates):
+                    mk.append(k)
+        else:
+            mk = [k for k in range(4) if _is_marked(
+                R, (pts[q, k],) if snapped is None else (pts[q, k], snapped[q, k]), base)]
         if not mk:
             ans.append('-'); st.append('b'); bl += 1
         elif len(mk) > 1:
@@ -273,7 +288,8 @@ def scan(img, n, key):
             for row in range(15)
             for col in range(block_start, block_start + 4)
         ]
-        pts, inner, ans, st, cor, wr, bl, db = _scan_answers(R, points, n, key, 1000)
+        gray = cv2.cvtColor(w, cv2.COLOR_BGR2GRAY)
+        pts, inner, ans, st, cor, wr, bl, db = _scan_answers(gray, points, n, key, 1000)
         ov = w.copy()
         for q in range(n):
             for k in range(4):
