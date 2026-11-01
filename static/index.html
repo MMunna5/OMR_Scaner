@@ -98,6 +98,9 @@ function renderList(){const el=$('list');el.innerHTML='';$('resc').hidden=!resul
   score(r);tot+=r.correct;cnt++;
   d.innerHTML='<div class="top"><div class="row" style="flex:1"><input type="text" class="roll" placeholder="Roll number" style="max-width:110px"><input type="text" class="nm" placeholder="Student name"></div><div class="score"></div></div><div class="st"></div><div class="answers"></div><div class="row" style="margin-top:8px"><button class="tg">View overlay</button><button class="rm">Remove</button></div><p class="warn" hidden></p>';
   const roll=d.querySelector('.roll'),nm=d.querySelector('.nm');roll.value=r.roll||'';nm.value=r.name||'';
+  const autoRoll=/^\\d{6}$/.test(roll.value);
+  roll.readOnly=autoRoll;roll.title=autoRoll?'Automatically read from the six-column roll-number grid':'Roll number needs checking';
+  roll.placeholder=autoRoll?'Auto-detected roll':'Roll number needs checking';
   const chk=()=>roll.classList.toggle('bad',/[?*]/.test(roll.value));chk();
   roll.oninput=()=>{r.roll=roll.value;chk()};nm.oninput=()=>{r.name=nm.value};
   const total=Math.min(Number.isInteger(r.total)?r.total:N,N);
