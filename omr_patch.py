@@ -1,18 +1,23 @@
-"""Small compatibility fix for the two-block portrait OMR layout.
-
-The scanner consumes 30 questions as 15 rows in the left block followed by
-15 rows in the right block. The current scan() routine temporarily groups
-coordinates by visual row; these adapters provide that exact intermediate
-ordering so its existing regrouping restores the correct question sequence.
-"""
+"""Compatibility fixes for the two-block portrait OMR layout and multi-answer keys."""
 import omr
+
+
+class AnswerChoices(list):
+    """A list of correct options that also matches the scanner's legacy int comparison."""
+    def __eq__(self, other):
+        if type(other) is int:
+            return other in self
+        return super().__eq__(other)
+
+
+def normalize_key(key):
+    return [AnswerChoices(answer) if isinstance(answer, list) else answer for answer in key]
 
 
 def _row_interleave(points):
     if len(points) != 120:
         return points
-    left = points[:60]
-    right = points[60:]
+    left, right = points[:60], points[60:]
     arranged = []
     for row in range(15):
         arranged.extend(left[row * 4:(row + 1) * 4])
