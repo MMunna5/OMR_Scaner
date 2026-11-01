@@ -59,11 +59,11 @@ const save=()=>{try{localStorage.setItem('omr',JSON.stringify({N,key,exam:$('exa
 $('exam').oninput=save;
 function drawSetup(){$('qcount').value=N;
  const k=$('key');k.innerHTML='';for(let q=0;q<N;q++){const r=document.createElement('div');r.className='kr';r.innerHTML='<b>'+(q+1)+'</b>';
-  L.forEach((l,i)=>{const b=document.createElement('button');b.textContent=l;if(key[q]===i)b.className='on';b.onclick=()=>{key[q]=i;save();drawSetup();renderList()};r.append(b)});k.append(r)}}
+  L.forEach((l,i)=>{const b=document.createElement('button');b.textContent=l;const selected=(Array.isArray(key[q])?key[q]:[key[q]]).filter(Number.isInteger);if(selected.includes(i))b.className='on';b.onclick=()=>{let next=(Array.isArray(key[q])?key[q]:[key[q]]).filter(Number.isInteger);if(next.includes(i))next=next.filter(x=>x!==i);else next.push(i);key[q]=next.sort();save();drawSetup();renderList()};r.append(b)});k.append(r)}}
 function setQuestionCount(){const n=Number($('qcount').value);if(!Number.isInteger(n)||n<1||n>50){$('qcount').value=N;alert('Enter a whole number between 1 and 50.');return}if(n!==N){N=n;save();drawSetup();renderList()}}
 $('qcount').onchange=setQuestionCount;
-const keyOK=()=>{for(let q=0;q<N;q++)if(!(key[q]>=0))return false;return true};
-function score(r){let c=0,w=0,b=0,d=0;const st=[];for(let q=0;q<N;q++){const a=r.answers[q];if(a==='-'){b++;st.push('b')}else if(a==='*'){d++;st.push('d')}else if(L.indexOf(a)===key[q]){c++;st.push('c')}else{w++;st.push('w')}}Object.assign(r,{correct:c,wrong:w,blank:b,double:d,status:st})}
+const keyOK=()=>{for(let q=0;q<N;q++){const a=(Array.isArray(key[q])?key[q]:[key[q]]).filter(Number.isInteger);if(!a.length||a.some(x=>x<0||x>3))return false}return true};
+function score(r){let c=0,w=0,b=0,d=0;const st=[];for(let q=0;q<N;q++){const marked=Array.isArray(r.selected?.[q])?r.selected[q]:[];const expected=Array.isArray(key[q])?key[q]:[key[q]];if(!marked.length){b++;w++;st.push('w')}else if(marked.length>1){d++;w++;st.push('d')}else if(expected.includes(marked[0])){c++;st.push('c')}else{w++;st.push('w')}}Object.assign(r,{correct:c,wrong:w,blank:b,double:d,status:st})}
 
 async function scanFile(file){const fd=new FormData();fd.append('file',file,file.name);fd.append('n',N);fd.append('key',JSON.stringify(key.slice(0,N)));
  try{const r=await fetch('/api/scan',{method:'POST',body:fd});const j=await r.json();if(!r.ok)throw new Error(j.error||'Server error');return j.results}

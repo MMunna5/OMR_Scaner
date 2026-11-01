@@ -165,8 +165,8 @@ def _inner(R, x, y):
 
 
 def _is_marked(R, pts, base):
-    """Marked when >=30% of the bubble disc is clearly darker than local paper (checks nominal and snapped centre)."""
-    return any(_mark_fraction(R, x, y, base) >= .25 for x, y in pts)
+    """Marked when at least 15% of the inner bubble or box is filled."""
+    return any(_mark_fraction(R, x, y, base) >= .15 for x, y in pts)
 
 
 def _mark_fraction(R, x, y, base):
@@ -325,7 +325,7 @@ def _scan_answers(R, points, n, key, width, snapped=None):
     pts = np.array(points, np.float32).reshape(30 if width == 1000 else 50, 4, 2)
     inner = np.array([[_inner(R, *pts[q, k]) for k in range(4)]
                       for q in range(len(pts))])
-    ans, st = [], []
+    ans, st, selected = [], [], []
     cor = wr = bl = db = 0
     for q in range(n):
         block_size = 15 if width == 1000 else 25
@@ -341,6 +341,7 @@ def _scan_answers(R, points, n, key, width, snapped=None):
         else:
             mk = [k for k in range(4) if _is_marked(
                 R, (pts[q, k],) if snapped is None else (pts[q, k], snapped[q, k]), base)]
+        selected.append(mk)
         if not mk:
             ans.append('-'); st.append('b'); bl += 1
         elif len(mk) > 1:
@@ -349,7 +350,7 @@ def _scan_answers(R, points, n, key, width, snapped=None):
             ans.append(L[mk[0]]); st.append('c'); cor += 1
         else:
             ans.append(L[mk[0]]); st.append('w'); wr += 1
-    return pts, inner, ans, st, cor, wr, bl, db
+    return pts, inner, ans, st, cor, wr, bl, db, selected
 
 
 def scan(img, n, key):
@@ -369,7 +370,7 @@ def scan(img, n, key):
             for col in range(block_start, block_start + 4)
         ]
         gray = cv2.cvtColor(w, cv2.COLOR_BGR2GRAY)
-        pts, inner, ans, st, cor, wr, bl, db = _scan_answers(gray, points, n, key, 1000)
+        pts, inner, ans, st, cor, wr, bl, db, selected = _scan_answers(gray, points, n, key, 1000)
         ov = w.copy()
         for q in range(n):
             for k in range(4):
@@ -380,7 +381,7 @@ def scan(img, n, key):
                     cv2.circle(ov, (x, y), 13, (0, 170, 0) if st[q] == 'c' else (0, 0, 230), 4)
         crop = cv2.resize(ov, (800, 1120), interpolation=cv2.INTER_AREA)
         ok, buf = cv2.imencode('.jpg', crop, [cv2.IMWRITE_JPEG_QUALITY, 70])
-        return dict(roll='??????', answers=ans, status=st, correct=cor, wrong=wr,
+        return dict(roll='??????', answers=ans, selected=selected, status=st, correct=cor, wrong=wr,
                     blank=bl, double=db, total=n, overlay='data:image/jpeg;base64,' +
                     base64.b64encode(buf).decode())
 
@@ -393,7 +394,7 @@ def scan(img, n, key):
     except ScanError:
         dynamic_points = None
     if dynamic_points is not None:
-        pts, inner, ans, st, cor, wr, bl, db = _scan_answers(
+        pts, inner, ans, st, cor, wr, bl, db, selected = _scan_answers(
             R, dynamic_points, n, key, 1500)
         spts = pts
     else:
@@ -401,7 +402,7 @@ def scan(img, n, key):
                for q in range(50) for k in range(4)]
         Hf = _fit_H(exp, circles)
         pts, spts = (a.reshape(50, 4, 2) for a in _snap(exp, circles, Hf))
-        pts, inner, ans, st, cor, wr, bl, db = _scan_answers(
+        pts, inner, ans, st, cor, wr, bl, db, selected = _scan_answers(
             R, pts.reshape(-1, 2), n, key, 1500, spts)
     exp = [(A + U[q // 25][k] * S, A + (V0 + DV * (q % 25)) * S)
            for q in range(50) for k in range(4)]
@@ -450,7 +451,7 @@ def scan(img, n, key):
     crop = ov[250:1200, 150:1300]
     crop = cv2.resize(crop, (800, int(800 * crop.shape[0] / crop.shape[1])), interpolation=cv2.INTER_AREA)
     ok, buf = cv2.imencode('.jpg', crop, [cv2.IMWRITE_JPEG_QUALITY, 70])
-    return dict(roll=roll, answers=ans, status=st, correct=cor, wrong=wr, blank=bl, double=db, total=n,
+    return dict(roll=roll, answers=ans, selected=selected, status=st, correct=cor, wrong=wr, blank=bl, double=db, total=n,
                 overlay='data:image/jpeg;base64,' + base64.b64encode(buf).decode())
 
 

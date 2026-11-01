@@ -91,7 +91,9 @@ def export():
     k = wb.create_sheet('Answer Key')
     k.append(['Q', 'Answer'])
     for i in range(n):
-        k.append([i + 1, omr.L[key[i]] if 0 <= key[i] < 4 else ''])
+        answers = key[i] if isinstance(key[i], list) else [key[i]]
+        labels = [omr.L[x] for x in answers if isinstance(x, int) and 0 <= x < 4]
+        k.append([i + 1, ', '.join(labels)])
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
