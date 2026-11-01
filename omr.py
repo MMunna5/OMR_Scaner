@@ -58,12 +58,41 @@ def find_anchors(im):
     return None
 
 
+def _rectify_page(img):
+    """Rectify a plain portrait answer sheet when calibrated anchors are absent."""
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    best = None
+    best_area = 0
+    for threshold in (140, 120, 100):
+        mask = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)[1]
+        contours, _ = cv2.findContours(mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        for contour in contours:
+            area = cv2.contourArea(contour)
+            if area < img.shape[0] * img.shape[1] * .20 or area <= best_area:
+                continue
+            box = cv2.boxPoints(cv2.minAreaRect(contour)).astype(np.float32)
+            if area / cv2.contourArea(cv2.convexHull(box)) > .65:
+                best, best_area = box, area
+        if best is not None:
+            break
+    if best is None:
+        h, w = img.shape[:2]
+        best = np.float32([[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]])
+    s = best.sum(1)
+    d = np.diff(best, axis=1).ravel()
+    src = np.float32([best[np.argmin(s)], best[np.argmin(d)],
+                      best[np.argmax(s)], best[np.argmax(d)]])
+    dst = np.float32([[0, 0], [1000, 0], [1000, 1400], [0, 1400]])
+    return cv2.warpPerspective(img, cv2.getPerspectiveTransform(src, dst), (1000, 1400),
+                               flags=cv2.INTER_CUBIC)
+
+
 def rectify(img):
     s = 1400.0 / img.shape[1]
     small = cv2.resize(img, None, fx=s, fy=s, interpolation=cv2.INTER_AREA)
     f = find_anchors(small)
     if f is None:
-        raise ScanError('Could not find the sheet corners (anchors). Capture the entire sheet in good lighting and keep it straight.')
+        return _rectify_page(img), 'portrait30'
     (tl, tr), (bl, br) = f
     if tl[1] > bl[1]:
         raise ScanError('The sheet appears to be upside down. Rotate it and capture it again.')
@@ -72,7 +101,7 @@ def rectify(img):
     src = np.float32([tl, tr, br, bl]) / s
     dst = np.float32([(A, A), (A + S, A), (A + S, A + S), (A, A + S)])
     M = cv2.getPerspectiveTransform(src, dst)
-    return cv2.warpPerspective(img, M, (FW, FH), flags=cv2.INTER_CUBIC)
+    return cv2.warpPerspective(img, M, (FW, FH), flags=cv2.INTER_CUBIC), 'standard'
 
 
 def _fit_H(points, circles):
@@ -129,26 +158,26 @@ def _is_marked(R, pts, base):
     return max(float((_patch(R, x, y) < base * .72).mean()) for x, y in pts) >= .30
 
 
-def scan(img, n, key):
-    w = rectify(img)
-    R = w[:, :, 2]
-    g = cv2.medianBlur(cv2.cvtColor(w, cv2.COLOR_BGR2GRAY), 5)
-    c = cv2.HoughCircles(g, cv2.HOUGH_GRADIENT, dp=1, minDist=20, param1=70, param2=18, minRadius=9, maxRadius=17)
-    circles = c[0] if c is not None else np.zeros((0, 3), np.float32)
+def _portrait_points():
+    """Answer positions for the common 30-question portrait sheet: two blocks of 15."""
+    xs = ([.19, .232, .276, .318], [.442, .480, .520, .560])
+    return [(x * 1000, (.31 + .04 * (q % 15)) * 1400)
+            for q in range(30) for x in xs[q // 15]]
 
-    exp = [(A + U[q // 25][k] * S, A + (V0 + DV * (q % 25)) * S) for q in range(50) for k in range(4)]
-    rexp = [(A + RU[c_] * S, A + (RV0 + RDV * r_) * S) for c_ in range(6) for r_ in range(10)]
-    Hf = _fit_H(exp, circles)
-    pts, spts = (a.reshape(50, 4, 2) for a in _snap(exp, circles, Hf))
-    inner = np.array([[_inner(R, *pts[q, k]) for k in range(4)] for q in range(50)])
 
+def _scan_answers(R, points, n, key, width, snapped=None):
+    pts = np.array(points, np.float32).reshape(30 if width == 1000 else 50, 4, 2)
+    inner = np.array([[_inner(R, *pts[q, k]) for k in range(4)]
+                      for q in range(len(pts))])
     ans, st = [], []
     cor = wr = bl = db = 0
     for q in range(n):
-        blk = (q // 25) * 25
-        lo, hi = max(blk, q - 3), min(blk + 25, q + 4)
+        block_size = 15 if width == 1000 else 25
+        block = (q // block_size) * block_size
+        lo, hi = max(block, q - 3), min(block + block_size, q + 4)
         base = np.median(inner[lo:hi])
-        mk = [k for k in range(4) if _is_marked(R, (pts[q, k], spts[q, k]), base)]
+        mk = [k for k in range(4) if _is_marked(
+            R, (pts[q, k],) if snapped is None else (pts[q, k], snapped[q, k]), base)]
         if not mk:
             ans.append('-'); st.append('b'); bl += 1
         elif len(mk) > 1:
@@ -157,6 +186,41 @@ def scan(img, n, key):
             ans.append(L[mk[0]]); st.append('c'); cor += 1
         else:
             ans.append(L[mk[0]]); st.append('w'); wr += 1
+    return pts, inner, ans, st, cor, wr, bl, db
+
+
+def scan(img, n, key):
+    w, profile = rectify(img)
+    R = w[:, :, 2]
+    if profile == 'portrait30':
+        if n > 30:
+            raise ScanError('This portrait sheet layout supports up to 30 questions.')
+        points = _portrait_points()
+        pts, inner, ans, st, cor, wr, bl, db = _scan_answers(R, points, n, key, 1000)
+        ov = w.copy()
+        for q in range(n):
+            for k in range(4):
+                x, y = map(int, pts[q, k])
+                if key[q] == k and st[q] in ('w', 'b', 'd'):
+                    cv2.circle(ov, (x, y), 15, (255, 140, 0), 3)
+                if st[q] in ('c', 'w') and ans[q] == L[k]:
+                    cv2.circle(ov, (x, y), 13, (0, 170, 0) if st[q] == 'c' else (0, 0, 230), 4)
+        crop = cv2.resize(ov, (800, 1120), interpolation=cv2.INTER_AREA)
+        ok, buf = cv2.imencode('.jpg', crop, [cv2.IMWRITE_JPEG_QUALITY, 70])
+        return dict(roll='??????', answers=ans, status=st, correct=cor, wrong=wr,
+                    blank=bl, double=db, total=n, overlay='data:image/jpeg;base64,' +
+                    base64.b64encode(buf).decode())
+
+    g = cv2.medianBlur(cv2.cvtColor(w, cv2.COLOR_BGR2GRAY), 5)
+    c = cv2.HoughCircles(g, cv2.HOUGH_GRADIENT, dp=1, minDist=20, param1=70, param2=18, minRadius=9, maxRadius=17)
+    circles = c[0] if c is not None else np.zeros((0, 3), np.float32)
+
+    exp = [(A + U[q // 25][k] * S, A + (V0 + DV * (q % 25)) * S) for q in range(50) for k in range(4)]
+    rexp = [(A + RU[c_] * S, A + (RV0 + RDV * r_) * S) for c_ in range(6) for r_ in range(10)]
+    Hf = _fit_H(exp, circles)
+    pts, spts = (a.reshape(50, 4, 2) for a in _snap(exp, circles, Hf))
+    pts, inner, ans, st, cor, wr, bl, db = _scan_answers(
+        R, pts.reshape(-1, 2), n, key, 1500, spts)
 
     rfit = cv2.perspectiveTransform(np.array(rexp, np.float32)[None], Hf)[0]
     if len(circles):   # small local shift for the roll block (it sits far from the answer grid)
