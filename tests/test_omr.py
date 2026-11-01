@@ -46,5 +46,18 @@ class OMRCoreTests(unittest.TestCase):
         self.assertEqual(answers[:4], ['খ', 'গ', '*', '-'])
 
 
+    def test_rectify_recovers_sideways_standard_sheet(self):
+        sheet = np.full((1400, 1500, 3), 245, dtype=np.uint8)
+        for i in range(25):
+            x = 200 + i * 40
+            cv2.rectangle(sheet, (x - 12, 190), (x + 12, 210), (0, 0, 255), -1)
+            cv2.rectangle(sheet, (x - 2, 1185), (x + 2, 1215), (0, 0, 255), -1)
+
+        sideways = cv2.rotate(sheet, cv2.ROTATE_90_CLOCKWISE)
+        aligned, profile = omr.rectify(sideways)
+        self.assertEqual(profile, 'standard')
+        self.assertEqual(aligned.shape[:2], (omr.FH, omr.FW))
+
+
 if __name__ == '__main__':
     unittest.main()
