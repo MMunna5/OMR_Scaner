@@ -342,11 +342,12 @@ def _scan_answers(R, points, n, key, width, snapped=None):
             mk = [k for k in range(4) if _is_marked(
                 R, (pts[q, k],) if snapped is None else (pts[q, k], snapped[q, k]), base)]
         selected.append(mk)
+        expected = key[q] if isinstance(key[q], (list, tuple)) else [key[q]]
         if not mk:
-            ans.append('-'); st.append('b'); bl += 1
+            ans.append('-'); st.append('b'); bl += 1; wr += 1
         elif len(mk) > 1:
             ans.append('*'); st.append('d'); db += 1
-        elif mk[0] == key[q]:
+        elif mk[0] in expected:
             ans.append(L[mk[0]]); st.append('c'); cor += 1
         else:
             ans.append(L[mk[0]]); st.append('w'); wr += 1

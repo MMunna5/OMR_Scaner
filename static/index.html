@@ -20,6 +20,9 @@ video{display:block;width:100%;aspect-ratio:4/3;object-fit:contain;border-radius
 .res{border:1px solid var(--bd);border-radius:12px;padding:10px;margin-top:10px}.res.err{border-color:var(--ac)}
 .top{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}.score{font-size:24px;font-weight:700}
 .st{font-size:13px;color:var(--mu)}.st b{color:var(--tx)}.res img{width:100%;border-radius:8px;margin-top:8px}
+.answers{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;margin-top:8px;font-size:12px}
+.answers span{padding:5px 3px;border-radius:6px;text-align:center;background:var(--bd)}
+.answers .ok{background:#c8e6c9;color:#1b5e20}.answers .bad{background:#ffcdd2;color:#8e0000}.answers .dbl{background:#ffe0b2;color:#7a4100}
 .bar{height:6px;background:var(--bd);border-radius:3px;overflow:hidden;margin-top:8px}.bar i{display:block;height:100%;background:var(--ac);width:0}
 .warn{color:var(--ac);font-size:13px;margin:6px 0 0}
 @media (max-width:600px){
@@ -84,12 +87,14 @@ function renderList(){const el=$('list');el.innerHTML='';$('resc').hidden=!resul
  results.forEach(r=>{const d=document.createElement('div');d.className='res'+(r.error?' err':'');
   if(r.error){d.innerHTML='<div class="top"><b></b><button>✕</button></div><p class="warn"></p>';d.querySelector('b').textContent=r.file;d.querySelector('p').textContent='⚠ '+r.error;d.querySelector('button').onclick=()=>{results=results.filter(x=>x!==r);renderList()};el.append(d);return}
   score(r);tot+=r.correct;cnt++;
-  d.innerHTML='<div class="top"><div class="row" style="flex:1"><input type="text" class="roll" placeholder="Roll number" style="max-width:110px"><input type="text" class="nm" placeholder="Student name"></div><div class="score"></div></div><div class="st"></div><div class="row" style="margin-top:8px"><button class="tg">View overlay</button><button class="rm">Remove</button></div><p class="warn" hidden></p>';
+  d.innerHTML='<div class="top"><div class="row" style="flex:1"><input type="text" class="roll" placeholder="Roll number" style="max-width:110px"><input type="text" class="nm" placeholder="Student name"></div><div class="score"></div></div><div class="st"></div><div class="answers"></div><div class="row" style="margin-top:8px"><button class="tg">View overlay</button><button class="rm">Remove</button></div><p class="warn" hidden></p>';
   const roll=d.querySelector('.roll'),nm=d.querySelector('.nm');roll.value=r.roll||'';nm.value=r.name||'';
   const chk=()=>roll.classList.toggle('bad',/[?*]/.test(roll.value));chk();
   roll.oninput=()=>{r.roll=roll.value;chk()};nm.oninput=()=>{r.name=nm.value};
   d.querySelector('.score').textContent=r.correct+' / '+N;
   d.querySelector('.st').innerHTML='<b>'+r.file.replace(/[<>&]/g,'')+'</b> · Correct <b>'+r.correct+'</b> · Wrong <b>'+r.wrong+'</b> · Blank <b>'+r.blank+'</b> · Double <b>'+r.double+'</b>';
+  const detail=d.querySelector('.answers');
+  for(let q=0;q<N;q++){const marked=Array.isArray(r.selected?.[q])?r.selected[q]:[];const expected=(Array.isArray(key[q])?key[q]:[key[q]]).filter(Number.isInteger);const label=marked.length?marked.map(i=>L[i]).join('+'):'Blank';const expectedLabel=expected.map(i=>L[i]).join('/')||'-';const cls=!marked?'bad':marked.length>1?'dbl':expected.includes(marked[0])?'ok':'bad';const s=document.createElement('span');s.className=cls;s.textContent=(q+1)+': '+label+' (key '+expectedLabel+')';detail.append(s)}
   if(/[?*]/.test(r.roll||''))Object.assign(d.querySelector('.warn'),{hidden:false,textContent:'The roll number could not be read completely (? = no bubble, * = multiple bubbles). Correct it manually.'});
   let img=null;d.querySelector('.tg').onclick=()=>{if(img){img.remove();img=null;return}img=new Image();img.src=r.overlay;d.append(img)};
   d.querySelector('.rm').onclick=()=>{results=results.filter(x=>x!==r);renderList()};el.append(d)});
