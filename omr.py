@@ -99,21 +99,43 @@ def _rectify_page(img):
 
 
 def rectify(img):
-    s = 1400.0 / img.shape[1]
-    small = cv2.resize(img, None, fx=s, fy=s, interpolation=cv2.INTER_AREA)
-    f = find_anchors(small)
-    if f is None:
-        return _rectify_page(img), 'portrait30'
-    (tl, tr), (bl, br) = f
-    if tl[1] > bl[1]:
-        raise ScanError('The sheet appears to be upside down. Rotate it and capture it again.')
-    if (tr[0] - tl[0]) / s < 500:
-        raise ScanError('The photo resolution is too low. Capture the sheet from a closer distance or use a higher-quality image.')
-    src = np.float32([tl, tr, br, bl]) / s
+    """Find the calibrated anchor pair in any quarter-turn camera orientation."""
+    candidates = [
+        img,
+        cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE),
+        cv2.rotate(img, cv2.ROTATE_180),
+        cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE),
+    ]
+    detected = None
+    for candidate in candidates:
+        scale = 1400.0 / candidate.shape[1]
+        small = cv2.resize(candidate, None, fx=scale, fy=scale,
+                           interpolation=cv2.INTER_AREA)
+        anchors = find_anchors(small)
+        if anchors is None:
+            continue
+        (tl, tr), (bl, br) = anchors
+        # The printed square row must be above the bottom alignment bars.
+        if tl[1] > bl[1]:
+            continue
+        if (tr[0] - tl[0]) / scale < 500:
+            continue
+        detected = (candidate, scale, anchors)
+        break
+
+    if detected is None:
+        # The unmarked fallback layout is portrait-only. Normalize sideways
+        # phone captures before trying page-boundary rectification.
+        candidate = img
+        if candidate.shape[1] > candidate.shape[0]:
+            candidate = cv2.rotate(candidate, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        return _rectify_page(candidate), 'portrait30'
+
+    candidate, scale, ((tl, tr), (bl, br)) = detected
+    src = np.float32([tl, tr, br, bl]) / scale
     dst = np.float32([(A, A), (A + S, A), (A + S, A + S), (A, A + S)])
     M = cv2.getPerspectiveTransform(src, dst)
-    return cv2.warpPerspective(img, M, (FW, FH), flags=cv2.INTER_CUBIC), 'standard'
-
+    return cv2.warpPerspective(candidate, M, (FW, FH), flags=cv2.INTER_CUBIC), 'standard'
 
 def _fit_H(points, circles):
     """Homography expected-grid -> detected circles (corrects small anchor errors). Identity if unreliable."""
