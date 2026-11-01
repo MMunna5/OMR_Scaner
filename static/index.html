@@ -23,6 +23,7 @@ video{display:block;width:100%;aspect-ratio:4/3;object-fit:contain;border-radius
 .answers{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;margin-top:8px;font-size:12px}
 .answers span{padding:5px 3px;border-radius:6px;text-align:center;background:var(--bd)}
 .answers .ok{background:#c8e6c9;color:#1b5e20}.answers .bad{background:#ffcdd2;color:#8e0000}.answers .dbl{background:#ffe0b2;color:#7a4100}
+.legend .ok,.legend .bad,.legend .dbl{font-weight:700}
 .bar{height:6px;background:var(--bd);border-radius:3px;overflow:hidden;margin-top:8px}.bar i{display:block;height:100%;background:var(--ac);width:0}
 .warn{color:var(--ac);font-size:13px;margin:6px 0 0}
 @media (max-width:600px){
@@ -37,7 +38,7 @@ video{display:block;width:100%;aspect-ratio:4/3;object-fit:contain;border-radius
  .res .roll{flex:0 0 110px}.res .nm{min-width:0}
 }
 </style></head><body><main>
-<h1>OMR Scanner</h1><p class="s">Set the answer key → scan a photo, PDF, or camera capture → export to Excel</p>
+<h1>OMR Scanner <span class="s">v2026.11.01</span></h1><p class="s">Set the answer key → scan a photo, PDF, or camera capture → export to Excel</p>
 
 <section class="card"><h2>1. Exam setup</h2>
 <input type="text" id="exam" placeholder="Exam name (used for the Excel filename)" autocomplete="off">
@@ -52,6 +53,7 @@ video{display:block;width:100%;aspect-ratio:4/3;object-fit:contain;border-radius
 <div class="bar" id="bar" hidden><i id="barin"></i></div><p class="s" id="status"></p></section>
 
 <section class="card" id="resc" hidden><h2>3. Results <span class="s" id="sum"></span></h2>
+<p class="s legend"><span class="ok">Green = correct</span> · <span class="bad">Red = wrong or blank</span> · <span class="dbl">Orange = multiple options marked (wrong)</span></p>
 <div class="row"><button class="p" id="bexp">⬇ Export to Excel (.xlsx)</button><button id="bclr">Clear all results</button></div><div id="list"></div></section>
 
 <script>
