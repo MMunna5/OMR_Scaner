@@ -5,28 +5,39 @@
 <style>
 :root{--bg:#f6f5f2;--card:#fff;--tx:#1b1b1b;--mu:#6b6b6b;--ac:#c62828;--ok:#2e7d32;--bd:#e2dfd8;color-scheme:light}
 @media (prefers-color-scheme:dark){:root{--bg:#161616;--card:#232323;--tx:#eee;--mu:#9a9a9a;--bd:#3a3a3a;--ac:#ef5350;--ok:#66bb6a;color-scheme:dark}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI","Noto Sans Bengali",sans-serif}
+*{box-sizing:border-box}html{overflow-x:hidden}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI","Noto Sans Bengali",sans-serif}
 main{max-width:760px;margin:0 auto;padding:14px}h1{font-size:21px;margin:6px 0 2px}h2{font-size:16px;margin:0 0 10px}.s{color:var(--mu);font-size:13px;margin:0 0 10px}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:12px}
-button,.btn{font:inherit;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;padding:9px 14px;cursor:pointer;display:inline-block}
+button,.btn{font:inherit;min-height:44px;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;padding:9px 14px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;touch-action:manipulation}
 button.p,.btn.p{background:var(--ac);border-color:var(--ac);color:#fff}button:disabled{opacity:.5}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.seg button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
 .key{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px}.kr{display:flex;align-items:center;gap:5px}.kr b{width:24px;text-align:right;font-size:12px;color:var(--mu)}
-.kr button{padding:4px 0;width:34px;border-radius:50%;font-size:13px}.kr button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
-input[type=text]{font:inherit;padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);min-width:0;flex:1}
-input[type=number]{font:inherit;padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);width:110px}
+.kr button{padding:4px 0;width:40px;border-radius:50%;font-size:13px}.kr button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+input[type=text],input[type=number]{font:inherit;min-height:44px;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx)}
+input[type=text]{min-width:0;flex:1}input[type=number]{width:110px}
 input.bad{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 12%,var(--bg))}
-video{width:100%;border-radius:10px;background:#000;margin-top:8px}
+video{display:block;width:100%;aspect-ratio:4/3;object-fit:contain;border-radius:10px;background:#000;margin-top:8px}
 .res{border:1px solid var(--bd);border-radius:12px;padding:10px;margin-top:10px}.res.err{border-color:var(--ac)}
 .top{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}.score{font-size:24px;font-weight:700}
 .st{font-size:13px;color:var(--mu)}.st b{color:var(--tx)}.res img{width:100%;border-radius:8px;margin-top:8px}
 .bar{height:6px;background:var(--bd);border-radius:3px;overflow:hidden;margin-top:8px}.bar i{display:block;height:100%;background:var(--ac);width:0}
 .warn{color:var(--ac);font-size:13px;margin:6px 0 0}
+@media (max-width:600px){
+ main{padding:12px 10px env(safe-area-inset-bottom,12px)}
+ h1{font-size:20px}.card{padding:12px;border-radius:12px}
+ #exam,#qcount{width:100%}
+ .key{grid-template-columns:1fr;gap:6px}
+ .kr{min-height:44px}.kr b{width:28px}.kr button{width:42px}
+ .row>.btn,.row>button{width:100%;flex:1 1 100%}
+ .top>.row{width:100%}.top>.score{margin-left:auto}
+ .res .row[style]{margin-top:8px}
+ .res .roll{flex:0 0 110px}.res .nm{min-width:0}
+}
 </style></head><body><main>
 <h1>OMR Scanner</h1><p class="s">Set the answer key → scan a photo, PDF, or camera capture → export to Excel</p>
 
 <section class="card"><h2>1. Exam setup</h2>
-<input type="text" id="exam" placeholder="Exam name (used for the Excel filename)">
+<input type="text" id="exam" placeholder="Exam name (used for the Excel filename)" autocomplete="off">
 <label class="s" style="display:block;margin-top:10px" for="qcount">Number of questions (1-50)</label><input type="number" id="qcount" min="1" max="50" step="1" value="50">
 <p class="s" style="margin-top:12px">Select the correct answer for each question</p><div class="key" id="key"></div></section>
 
