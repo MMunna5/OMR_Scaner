@@ -70,9 +70,14 @@ def _rectify_page(img):
             area = cv2.contourArea(contour)
             if area < img.shape[0] * img.shape[1] * .20 or area <= best_area:
                 continue
-            box = cv2.boxPoints(cv2.minAreaRect(contour)).astype(np.float32)
-            if area / cv2.contourArea(cv2.convexHull(box)) > .65:
-                best, best_area = box, area
+            peri = cv2.arcLength(contour, True)
+            poly = cv2.approxPolyDP(contour, .03 * peri, True)
+            if len(poly) == 4 and cv2.isContourConvex(poly):
+                best, best_area = poly[:, 0, :].astype(np.float32), area
+            else:
+                box = cv2.boxPoints(cv2.minAreaRect(contour)).astype(np.float32)
+                if area / cv2.contourArea(cv2.convexHull(box)) > .65:
+                    best, best_area = box, area
         if best is not None:
             break
     if best is None:
@@ -165,6 +170,69 @@ def _portrait_points():
             for q in range(30) for x in xs[q // 15]]
 
 
+def _fit_axis(values, count, start, end, spacing_min, spacing_max):
+    values = np.asarray(values, dtype=np.float32)
+    best = None
+    for spacing in np.linspace(spacing_min, spacing_max, 41):
+        for origin in np.arange(start, end - spacing * (count - 1), 2):
+            expected = origin + spacing * np.arange(count)
+            distance = np.abs(values[:, None] - expected[None, :]).min(1)
+            score = int((distance < spacing * .28).sum())
+            error = float(distance[distance < spacing * .28].mean()) if score else 999
+            candidate = (score, -error, expected)
+            if best is None or candidate[:2] > best[:2]:
+                best = candidate
+    if best is None or best[0] < count * .55:
+        raise ScanError('Could not fit the answer grid.')
+    return best[2].tolist()
+
+
+def _cluster_centres(values, count, tolerance=18):
+    values = sorted(float(v) for v in values)
+    groups = []
+    for value in values:
+        if not groups or value - groups[-1][-1] > tolerance:
+            groups.append([value])
+        else:
+            groups[-1].append(value)
+    centres = [sum(group) / len(group) for group in groups]
+    if len(centres) != count:
+        data = np.float32(values).reshape(-1, 1)
+        _, _, centers = cv2.kmeans(
+            data, count, None,
+            (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 50, .5),
+            5, cv2.KMEANS_PP_CENTERS)
+        centres = sorted(float(x[0]) for x in centers)
+    return centres
+
+
+def _portrait_grid(R):
+    gray = cv2.medianBlur(R, 5)
+    circles = cv2.HoughCircles(
+        gray, cv2.HOUGH_GRADIENT, dp=1, minDist=18, param1=70, param2=16,
+        minRadius=7, maxRadius=20)
+    if circles is None or len(circles[0]) < 40:
+        raise ScanError('Could not locate the answer grid. Use a clearer, fully visible photo.')
+    c = circles[0]
+    c = c[(c[:, 0] > 150) & (c[:, 0] < 590) & (c[:, 1] > 380) & (c[:, 1] < 1320)]
+    if len(c) < 40:
+        raise ScanError('Could not locate enough answer bubbles. Capture the full sheet without obstruction.')
+    left = c[(c[:, 0] > 210) & (c[:, 0] < 380)]
+    right = c[(c[:, 0] > 420) & (c[:, 0] < 580)]
+    if len(left) < 20 or len(right) < 20:
+        raise ScanError('Could not separate the two answer blocks.')
+    left_x = _fit_axis(left[:, 0], 4, 210, 400, 35, 50)
+    right_x = _fit_axis(right[:, 0], 4, 420, 600, 30, 50)
+    ys = _fit_axis(c[:, 1], 15, 420, 1320, 48, 68)
+    points = []
+    for columns in (left_x, right_x):
+        for row in ys:
+            for col in columns:
+                d = np.linalg.norm(c[:, :2] - np.array([col, row]), axis=1)
+                points.append(c[d.argmin(), :2] if d.min() < 30 else (col, row))
+    return points
+
+
 def _scan_answers(R, points, n, key, width, snapped=None):
     pts = np.array(points, np.float32).reshape(30 if width == 1000 else 50, 4, 2)
     inner = np.array([[_inner(R, *pts[q, k]) for k in range(4)]
@@ -195,7 +263,16 @@ def scan(img, n, key):
     if profile == 'portrait30':
         if n > 30:
             raise ScanError('This portrait sheet layout supports up to 30 questions.')
-        points = _portrait_points()
+        try:
+            points = _portrait_grid(R)
+        except ScanError:
+            points = _portrait_points()
+        points = [
+            points[row * 8 + col]
+            for block_start in (0, 4)
+            for row in range(15)
+            for col in range(block_start, block_start + 4)
+        ]
         pts, inner, ans, st, cor, wr, bl, db = _scan_answers(R, points, n, key, 1000)
         ov = w.copy()
         for q in range(n):
