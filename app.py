@@ -86,7 +86,7 @@ def scan():
             out.append(dict(file=fname, error=f'PDFs are limited to {MAX_PDF_PAGES} pages per upload. Split the PDF and try again.'))
             break
         try:
-            r = omr.scan(img, n, key)
+            r = omr.scan(img, n, omr_patch.normalize_key(key))
             r['file'] = label
         except omr.ScanError as e:
             r = dict(file=label, error=str(e))
