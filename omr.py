@@ -377,7 +377,7 @@ def _box_mark_fraction(R, x, y, base, half_w, half_h):
     patch = R[y - half_h:y + half_h + 1, x - half_w:x + half_w + 1]
     if patch.shape != (2 * half_h + 1, 2 * half_w + 1):
         return 0.0
-    threshold = min(150.0, max(45.0, float(base) * .72))
+    threshold = min(150.0, max(45.0, float(base) * .65))
     return float((patch < threshold).mean())
 
 
@@ -389,12 +389,29 @@ def _scan_box_answers(R, points, n, key):
     answers, status, selected = [], [], []
     correct = wrong = blank = double = 0
     for q in range(n):
-        # Compare local four-option cells so paper shade changes do not move row geometry.
-        base = float(np.median(inner[max(0, q - 1):min(50, q + 2)]))
-        marked = [
-            k for k in range(4)
-            if _box_mark_fraction(R, *pts[q, k], base, 11, 8) >= .15
-        ]
+        # Each answer option is a full rectangular cell. Derive its boundaries
+        # from neighbouring bubble centres, not a small circle-centred patch.
+        block_start = (q // 25) * 25
+        for_row = []
+        for k in range(4):
+            if q > block_start:
+                for_row.append(abs(float(pts[q, k, 1] - pts[q - 1, k, 1])))
+            if q < block_start + 24:
+                for_row.append(abs(float(pts[q + 1, k, 1] - pts[q, k, 1])))
+        half_h = max(1, int(min(for_row) * .46)) if for_row else 1
+
+        # Keep a narrow safety gap between adjacent option cells.
+        marked = []
+        base = float(np.median(inner[max(block_start, q - 1):min(block_start + 25, q + 2)]))
+        for k in range(4):
+            neighbours = []
+            if k > 0:
+                neighbours.append(abs(float(pts[q, k, 0] - pts[q, k - 1, 0])))
+            if k < 3:
+                neighbours.append(abs(float(pts[q, k + 1, 0] - pts[q, k, 0])))
+            half_w = max(1, int(min(neighbours) * .46))
+            if _box_mark_fraction(R, *pts[q, k], base, half_w, half_h) >= .15:
+                marked.append(k)
         selected.append(marked)
         expected = key[q] if isinstance(key[q], (list, tuple, set)) else [key[q]]
         if not marked:
@@ -412,12 +429,16 @@ def _read_box_roll(R, points):
     """Read each of six roll digits from its own ten-row rectangular bubble column."""
     roll_points = np.asarray(points, np.float32).reshape(6, 10, 2)
     digits, selected = [], []
+    column_gaps = np.abs(np.diff(roll_points[:, 0, 0]))
+    row_gaps = np.abs(np.diff(roll_points[0, :, 1]))
+    half_w = max(1, int(float(column_gaps.min()) * .46))
+    half_h = max(1, int(float(row_gaps.min()) * .46))
     for col in range(6):
         means = np.asarray([_inner(R, *roll_points[col, row]) for row in range(10)])
         base = float(np.median(means))
         marked = [
             row for row in range(10)
-            if _box_mark_fraction(R, *roll_points[col, row], base, 8, 8) >= .15
+            if _box_mark_fraction(R, *roll_points[col, row], base, half_w, half_h) >= .15
         ]
         selected.append(marked)
         digits.append(str(marked[0]) if len(marked) == 1 else ('?' if not marked else '*'))
