@@ -63,12 +63,12 @@ def rectify(img):
     small = cv2.resize(img, None, fx=s, fy=s, interpolation=cv2.INTER_AREA)
     f = find_anchors(small)
     if f is None:
-        raise ScanError('Sheet-er kon (anchor) khuje pawa jayni. Pura sheet, bhalo alo-te, sidha kore photo tulo.')
+        raise ScanError('Could not find the sheet corners (anchors). Capture the entire sheet in good lighting and keep it straight.')
     (tl, tr), (bl, br) = f
     if tl[1] > bl[1]:
-        raise ScanError('Sheet ulta (upside down) mone hocche. Sidha kore abar tulo.')
+        raise ScanError('The sheet appears to be upside down. Rotate it and capture it again.')
     if (tr[0] - tl[0]) / s < 500:
-        raise ScanError('Photo-r resolution khub kom. Kachhe theke ba high-quality-te tulo.')
+        raise ScanError('The photo resolution is too low. Capture the sheet from a closer distance or use a higher-quality image.')
     src = np.float32([tl, tr, br, bl]) / s
     dst = np.float32([(A, A), (A + S, A), (A + S, A + S), (A, A + S)])
     M = cv2.getPerspectiveTransform(src, dst)
@@ -214,5 +214,5 @@ def load_pages(name, data):
         return
     im = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
     if im is None:
-        raise ScanError('Ei file ta image/PDF hishebe pora jayni.')
+        raise ScanError('This file could not be read as an image or PDF.')
     yield name, im

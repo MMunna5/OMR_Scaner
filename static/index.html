@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="bn"><head><meta charset="utf-8">
+<html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>OMR Scanner</title>
 <style>
@@ -14,6 +14,7 @@ button.p,.btn.p{background:var(--ac);border-color:var(--ac);color:#fff}button:di
 .key{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px}.kr{display:flex;align-items:center;gap:5px}.kr b{width:24px;text-align:right;font-size:12px;color:var(--mu)}
 .kr button{padding:4px 0;width:34px;border-radius:50%;font-size:13px}.kr button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
 input[type=text]{font:inherit;padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);min-width:0;flex:1}
+input[type=number]{font:inherit;padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);width:110px}
 input.bad{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 12%,var(--bg))}
 video{width:100%;border-radius:10px;background:#000;margin-top:8px}
 .res{border:1px solid var(--bd);border-radius:12px;padding:10px;margin-top:10px}.res.err{border-color:var(--ac)}
@@ -22,45 +23,47 @@ video{width:100%;border-radius:10px;background:#000;margin-top:8px}
 .bar{height:6px;background:var(--bd);border-radius:3px;overflow:hidden;margin-top:8px}.bar i{display:block;height:100%;background:var(--ac);width:0}
 .warn{color:var(--ac);font-size:13px;margin:6px 0 0}
 </style></head><body><main>
-<h1>OMR Scanner</h1><p class="s">Key set koro → photo / PDF / camera diye scan koro → Excel export koro</p>
+<h1>OMR Scanner</h1><p class="s">Set the answer key → scan a photo, PDF, or camera capture → export to Excel</p>
 
-<section class="card"><h2>১. Exam setup</h2>
-<input type="text" id="exam" placeholder="Exam-er naam (Excel file-er naam hobe)">
-<p class="s" style="margin-top:10px">Koyta MCQ?</p><div class="row seg" id="nsel"></div>
-<p class="s" style="margin-top:12px">Prottek question-er sothik uttor select koro</p><div class="key" id="key"></div></section>
+<section class="card"><h2>1. Exam setup</h2>
+<input type="text" id="exam" placeholder="Exam name (used for the Excel filename)">
+<label class="s" style="display:block;margin-top:10px" for="qcount">Number of questions (1-50)</label><input type="number" id="qcount" min="1" max="50" step="1" value="50">
+<p class="s" style="margin-top:12px">Select the correct answer for each question</p><div class="key" id="key"></div></section>
 
-<section class="card"><h2>২. Scan</h2>
-<div class="row"><label class="btn p">📁 Photo / PDF (ekshathe onek-gulo)<input type="file" id="files" accept="image/*,application/pdf" multiple hidden></label>
+<section class="card"><h2>2. Scan</h2>
+<div class="row"><label class="btn p">📁 Photo / PDF (select multiple files)<input type="file" id="files" accept="image/*,application/pdf" multiple hidden></label>
 <button id="bcam">📷 Live camera</button></div>
-<div id="camwrap" hidden><video id="vid" playsinline muted></video><div class="row" style="margin-top:8px"><button class="p" id="bsnap">Capture ar scan</button><button id="bstop">Camera bondho</button></div>
-<p class="s">Pura sheet frame-e rekhe, alo bhalo rekhe, sidha kore capture koro.</p></div>
+<div id="camwrap" hidden><video id="vid" playsinline muted></video><div class="row" style="margin-top:8px"><button class="p" id="bsnap">Capture and scan</button><button id="bstop">Stop camera</button></div>
+<p class="s">Keep the entire sheet in frame, use good lighting, and hold it straight.</p></div>
 <div class="bar" id="bar" hidden><i id="barin"></i></div><p class="s" id="status"></p></section>
 
-<section class="card" id="resc" hidden><h2>৩. Results <span class="s" id="sum"></span></h2>
-<div class="row"><button class="p" id="bexp">⬇ Excel export (.xlsx)</button><button id="bclr">Shob muche felo</button></div><div id="list"></div></section>
+<section class="card" id="resc" hidden><h2>3. Results <span class="s" id="sum"></span></h2>
+<div class="row"><button class="p" id="bexp">⬇ Export to Excel (.xlsx)</button><button id="bclr">Clear all results</button></div><div id="list"></div></section>
 
 <script>
 const L=['ক','খ','গ','ঘ'];let N=50,key=[],results=[],stream=null,cam=0,uid=0;
 const $=i=>document.getElementById(i);
-try{const s=JSON.parse(localStorage.getItem('omr')||'null');if(s){N=s.N;key=s.key;$('exam').value=s.exam||''}}catch(e){}
+try{const s=JSON.parse(localStorage.getItem('omr')||'null');if(s){N=Number.isInteger(s.N)&&s.N>=1&&s.N<=50?s.N:50;key=Array.isArray(s.key)?s.key:[];$('exam').value=s.exam||''}}catch(e){}
 const save=()=>{try{localStorage.setItem('omr',JSON.stringify({N,key,exam:$('exam').value}))}catch(e){}};
 $('exam').oninput=save;
-function drawSetup(){const ns=$('nsel');ns.innerHTML='';[25,30,50].forEach(n=>{const b=document.createElement('button');b.textContent=n;if(n==N)b.className='on';b.onclick=()=>{N=n;save();drawSetup();renderList()};ns.append(b)});
+function drawSetup(){$('qcount').value=N;
  const k=$('key');k.innerHTML='';for(let q=0;q<N;q++){const r=document.createElement('div');r.className='kr';r.innerHTML='<b>'+(q+1)+'</b>';
   L.forEach((l,i)=>{const b=document.createElement('button');b.textContent=l;if(key[q]===i)b.className='on';b.onclick=()=>{key[q]=i;save();drawSetup();renderList()};r.append(b)});k.append(r)}}
+function setQuestionCount(){const n=Number($('qcount').value);if(!Number.isInteger(n)||n<1||n>50){$('qcount').value=N;alert('Enter a whole number between 1 and 50.');return}if(n!==N){N=n;save();drawSetup();renderList()}}
+$('qcount').onchange=setQuestionCount;
 const keyOK=()=>{for(let q=0;q<N;q++)if(!(key[q]>=0))return false;return true};
 function score(r){let c=0,w=0,b=0,d=0;const st=[];for(let q=0;q<N;q++){const a=r.answers[q];if(a==='-'){b++;st.push('b')}else if(a==='*'){d++;st.push('d')}else if(L.indexOf(a)===key[q]){c++;st.push('c')}else{w++;st.push('w')}}Object.assign(r,{correct:c,wrong:w,blank:b,double:d,status:st})}
 
 async function scanFile(file){const fd=new FormData();fd.append('file',file,file.name);fd.append('n',N);fd.append('key',JSON.stringify(key.slice(0,N)));
  try{const r=await fetch('/api/scan',{method:'POST',body:fd});const j=await r.json();if(!r.ok)throw new Error(j.error||'Server error');return j.results}
- catch(e){return[{file:file.name,error:e.message||'Network somossa'}]}}
-async function run(files){if(!keyOK()){alert('Age ১ নম্বর ধাপে '+N+' ta question-er shob uttor set koro.');return}
- $('bar').hidden=false;let i=0;for(const f of files){$('status').textContent='Scan hocche '+(i+1)+' / '+files.length+' : '+f.name;$('barin').style.width=(100*i/files.length)+'%';
+ catch(e){return[{file:file.name,error:e.message||'A network error occurred.'}]}}
+async function run(files){if(!keyOK()){alert('First, set all '+N+' answers in Step 1.');return}
+ $('bar').hidden=false;let i=0;for(const f of files){$('status').textContent='Scanning '+(i+1)+' / '+files.length+' : '+f.name;$('barin').style.width=(100*i/files.length)+'%';
   const rs=await scanFile(f);rs.forEach(r=>{r.id=++uid;if(!r.error){score(r)}results.push(r)});renderList();i++}
- $('barin').style.width='100%';$('status').textContent=files.length+' ta file scan hoyeche.';setTimeout(()=>$('bar').hidden=true,800)}
+ $('barin').style.width='100%';$('status').textContent=files.length+' file(s) scanned.';setTimeout(()=>$('bar').hidden=true,800)}
 $('files').onchange=async e=>{const f=[...e.target.files];e.target.value='';if(f.length)await run(f)};
 
-$('bcam').onclick=async()=>{try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:2560},height:{ideal:1440}}});$('vid').srcObject=stream;$('camwrap').hidden=false;await $('vid').play()}catch(e){alert('Camera chalu hocche na (permission/browser). "Photo / PDF" button diye photo upload koro.')}};
+$('bcam').onclick=async()=>{try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:2560},height:{ideal:1440}}});$('vid').srcObject=stream;$('camwrap').hidden=false;await $('vid').play()}catch(e){alert('Unable to start the camera. Check browser permissions, or upload a photo using the "Photo / PDF" button.')}};
 const stopCam=()=>{if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;$('camwrap').hidden=true};$('bstop').onclick=stopCam;
 $('bsnap').onclick=()=>{const v=$('vid'),c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);
  c.toBlob(b=>run([new File([b],'camera-'+(++cam)+'.jpg',{type:'image/jpeg'})]),'image/jpeg',.92)};
@@ -70,20 +73,20 @@ function renderList(){const el=$('list');el.innerHTML='';$('resc').hidden=!resul
  results.forEach(r=>{const d=document.createElement('div');d.className='res'+(r.error?' err':'');
   if(r.error){d.innerHTML='<div class="top"><b></b><button>✕</button></div><p class="warn"></p>';d.querySelector('b').textContent=r.file;d.querySelector('p').textContent='⚠ '+r.error;d.querySelector('button').onclick=()=>{results=results.filter(x=>x!==r);renderList()};el.append(d);return}
   score(r);tot+=r.correct;cnt++;
-  d.innerHTML='<div class="top"><div class="row" style="flex:1"><input type="text" class="roll" placeholder="Roll" style="max-width:110px"><input type="text" class="nm" placeholder="Student naam"></div><div class="score"></div></div><div class="st"></div><div class="row" style="margin-top:8px"><button class="tg">Overlay dekho</button><button class="rm">Muche felo</button></div><p class="warn" hidden></p>';
+  d.innerHTML='<div class="top"><div class="row" style="flex:1"><input type="text" class="roll" placeholder="Roll number" style="max-width:110px"><input type="text" class="nm" placeholder="Student name"></div><div class="score"></div></div><div class="st"></div><div class="row" style="margin-top:8px"><button class="tg">View overlay</button><button class="rm">Remove</button></div><p class="warn" hidden></p>';
   const roll=d.querySelector('.roll'),nm=d.querySelector('.nm');roll.value=r.roll||'';nm.value=r.name||'';
   const chk=()=>roll.classList.toggle('bad',/[?*]/.test(roll.value));chk();
   roll.oninput=()=>{r.roll=roll.value;chk()};nm.oninput=()=>{r.name=nm.value};
   d.querySelector('.score').textContent=r.correct+' / '+N;
   d.querySelector('.st').innerHTML='<b>'+r.file.replace(/[<>&]/g,'')+'</b> · Correct <b>'+r.correct+'</b> · Wrong <b>'+r.wrong+'</b> · Blank <b>'+r.blank+'</b> · Double <b>'+r.double+'</b>';
-  if(/[?*]/.test(r.roll||''))Object.assign(d.querySelector('.warn'),{hidden:false,textContent:'Roll number puro read hoyni (? = bubble nai, * = ekadhik). Haate thik koro.'});
+  if(/[?*]/.test(r.roll||''))Object.assign(d.querySelector('.warn'),{hidden:false,textContent:'The roll number could not be read completely (? = no bubble, * = multiple bubbles). Correct it manually.'});
   let img=null;d.querySelector('.tg').onclick=()=>{if(img){img.remove();img=null;return}img=new Image();img.src=r.overlay;d.append(img)};
   d.querySelector('.rm').onclick=()=>{results=results.filter(x=>x!==r);renderList()};el.append(d)});
- $('sum').textContent=cnt?'· '+cnt+' sheet · gor '+(tot/cnt).toFixed(1)+' / '+N:''}
+ $('sum').textContent=cnt?'· '+cnt+' sheet(s) · average '+(tot/cnt).toFixed(1)+' / '+N:''}
 
-$('bclr').onclick=()=>{if(confirm('Shob result muche felbo?')){results=[];renderList()}};
+$('bclr').onclick=()=>{if(confirm('Clear all results?')){results=[];renderList()}};
 $('bexp').onclick=async()=>{const rows=results.filter(r=>!r.error).map(r=>({roll:r.roll||'',name:r.name||'',correct:r.correct,wrong:r.wrong,blank:r.blank,double:r.double,answers:r.answers,status:r.status}));
  if(!rows.length)return;const res=await fetch('/api/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({exam:$('exam').value,n:N,key:key.slice(0,N),rows})});
- if(!res.ok){alert('Export hoyni');return}const a=document.createElement('a');a.href=URL.createObjectURL(await res.blob());a.download=($('exam').value.trim()||'omr-results')+'.xlsx';a.click()};
+ if(!res.ok){alert('Export failed.');return}const a=document.createElement('a');a.href=URL.createObjectURL(await res.blob());a.download=($('exam').value.trim()||'omr-results')+'.xlsx';a.click()};
 drawSetup();
 </script></main></body></html>

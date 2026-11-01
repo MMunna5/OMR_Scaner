@@ -1,6 +1,7 @@
-# OMR Scanner (Shaheed Noor Memorial School & College sheet)
+# OMR Scanner (Shaheed Noor Memorial School & College answer sheet)
 
-Photo / PDF / live camera diye OMR sheet scan kore auto count, roll number read ar Excel export.
+Scan an OMR sheet from a photo, PDF, or live camera capture, automatically count answers,
+read roll numbers, and export the results to Excel.
 
 ## Files
 - `app.py` – Flask server (API + page)
@@ -8,29 +9,30 @@ Photo / PDF / live camera diye OMR sheet scan kore auto count, roll number read 
 - `static/index.html` – user interface
 - `requirements.txt`, `render.yaml` – Render deploy config
 
-## Local-e chalano (optional test)
+## Run locally (optional)
 ```
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 python app.py        # http://localhost:5000
 ```
 
-## Render-e deploy (step by step)
-1. Ei project already GitHub-e push kora ache: [MMunna5/OMR_Scaner](https://github.com/MMunna5/OMR_Scaner).
-2. Render.com-e GitHub diye login koro → **New + → Web Service** → `OMR_Scaner` repo select koro.
+## Deploy to Render
+1. This project is available on GitHub: [MMunna5/OMR_Scaner](https://github.com/MMunna5/OMR_Scaner).
+2. Log in to Render.com with GitHub → **New + → Web Service** → select the `OMR_Scaner` repository.
 3. Settings:
    - Runtime: **Python 3**
    - Build Command: `pip install -r requirements.txt`
    - Start Command: `gunicorn app:app --workers 1 --threads 2 --timeout 300 --bind 0.0.0.0:$PORT`
    - Instance type: **Free**
    - Environment variable: `PYTHON_VERSION` = `3.11.9`
-   (Ba **New + → Blueprint** chaple `render.yaml` theke automatic hoye jabe.)
-4. **Create Web Service** → 3-5 minute build hobe. Shesh hole `https://omr-scanner-xxxx.onrender.com` link pabe. Ei link-i shobaike dao.
-5. Code bodle: GitHub-e file replace/commit korlei Render auto redeploy kore.
+   (Alternatively, select **New + → Blueprint** to configure the service automatically from `render.yaml`.)
+4. Select **Create Web Service**. The build usually takes 3-5 minutes. When it finishes, you will receive a URL such as `https://omr-scanner-xxxx.onrender.com`.
+5. To deploy code changes, push or commit the updated files to GitHub. Render will redeploy automatically.
 
 ## Notes
-- Free plan-e 15 min kew na use korle server ghumiye jay; prothom open-e ~1 minute lage.
-- Camera shudhu `https` link-e chole (Render-er link https, tai thik ache).
-- Eta shudhu ei specific sheet-er jonno calibrated (top-er kalo box, niche-r tick mark, 50 ta question block, 6 digit roll).
-- Bhalo result-er jonno: pura sheet frame-e, bhalo alo, sidha kore, shadow chhara photo. PDF-e ekbare ~30 page porjonto rakho.
-- Ballpoint/pencil dui-i kaj kore; halka mark hole "Overlay dekho" diye verify koro.
+- On the free plan, the server sleeps after 15 minutes of inactivity; the first request may take about one minute.
+- The camera works only over an `https` connection. The Render URL uses HTTPS.
+- The scanner is calibrated only for this specific sheet (top black boxes, bottom tick marks, 50-question layout, and six-digit roll number).
+- You can choose any whole-number question count from 1 to 50. Counts above 50 are not supported because the sheet layout is calibrated for a maximum of 50 questions.
+- For best results, keep the entire sheet in frame, use good lighting, hold it straight, and avoid shadows. Keep PDFs to about 30 pages per upload.
+- Both ballpoint and pencil marks are supported. Verify faint marks using **View overlay**.

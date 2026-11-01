@@ -28,14 +28,14 @@ def scan():
     """One uploaded file (photo or PDF) -> one result per page."""
     f = request.files.get('file')
     if not f:
-        return jsonify(error='Kono file pawa jayni'), 400
+        return jsonify(error='No file was provided.'), 400
     try:
         n = int(request.form.get('n', 50))
         key = json.loads(request.form.get('key', '[]'))
-        if n not in (25, 30, 50) or len(key) < n:
+        if not 1 <= n <= 50 or len(key) < n:
             raise ValueError
     except ValueError:
-        return jsonify(error='Question sonkha ba answer key thik nai'), 400
+        return jsonify(error='Invalid question count or answer key.'), 400
     out = []
     data, fname = f.read(), f.filename or 'upload'
     pages = omr.load_pages(fname, data)
@@ -45,7 +45,7 @@ def scan():
         except StopIteration:
             break
         except Exception as e:  # unreadable file
-            out.append(dict(file=fname, error=str(e) or 'File pora jayni'))
+            out.append(dict(file=fname, error=str(e) or 'The file could not be read.'))
             break
         try:
             r = omr.scan(img, n, key)
@@ -54,7 +54,7 @@ def scan():
             r = dict(file=label, error=str(e))
         except Exception:
             app.logger.exception('scan failed')
-            r = dict(file=label, error='Scan korte somossa hoyeche. Abar clear photo diye try koro.')
+            r = dict(file=label, error='The scan failed. Please try again with a clearer image.')
         out.append(r)
     return jsonify(results=out)
 
