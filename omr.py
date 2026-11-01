@@ -376,10 +376,12 @@ def scan(img, n, key):
         for q in range(n):
             for k in range(4):
                 x, y = map(int, pts[q, k])
-                if key[q] == k and st[q] in ('w', 'b', 'd'):
+                expected = key[q] if isinstance(key[q], (list, tuple, set)) else [key[q]]
+                if k in expected and st[q] in ('w', 'b', 'd'):
                     cv2.circle(ov, (x, y), 15, (255, 140, 0), 3)
-                if st[q] in ('c', 'w') and ans[q] == L[k]:
-                    cv2.circle(ov, (x, y), 13, (0, 170, 0) if st[q] == 'c' else (0, 0, 230), 4)
+                if k in selected[q]:
+                    color = (0, 170, 0) if st[q] == 'c' else ((0, 140, 255) if st[q] == 'd' else (0, 0, 230))
+                    cv2.circle(ov, (x, y), 13, color, 4)
         crop = cv2.resize(ov, (800, 1120), interpolation=cv2.INTER_AREA)
         ok, buf = cv2.imencode('.jpg', crop, [cv2.IMWRITE_JPEG_QUALITY, 70])
         return dict(roll='??????', answers=ans, selected=selected, status=st, correct=cor, wrong=wr,
@@ -443,12 +445,12 @@ def scan(img, n, key):
     for q in range(n):
         for k in range(4):
             x, y = int(pts[q, k, 0]), int(pts[q, k, 1])
-            if key[q] == k and st[q] in ('w', 'b', 'd'):
+            expected = key[q] if isinstance(key[q], (list, tuple, set)) else [key[q]]
+            if k in expected and st[q] in ('w', 'b', 'd'):
                 cv2.circle(ov, (x, y), 15, (255, 140, 0), 3)
-            if inner[q, k] < 255 and ans[q] == L[k] and st[q] in ('c', 'w'):
-                cv2.circle(ov, (x, y), 13, (0, 170, 0) if st[q] == 'c' else (0, 0, 230), 4)
-            elif st[q] == 'd' and _is_marked(R, (pts[q, k], spts[q, k]), np.median(inner[max(0, q - 3):q + 4])):
-                cv2.circle(ov, (x, y), 13, (0, 140, 255), 4)
+            if k in selected[q]:
+                color = (0, 170, 0) if st[q] == 'c' else ((0, 140, 255) if st[q] == 'd' else (0, 0, 230))
+                cv2.circle(ov, (x, y), 13, color, 4)
     crop = ov[250:1200, 150:1300]
     crop = cv2.resize(crop, (800, int(800 * crop.shape[0] / crop.shape[1])), interpolation=cv2.INTER_AREA)
     ok, buf = cv2.imencode('.jpg', crop, [cv2.IMWRITE_JPEG_QUALITY, 70])
