@@ -63,10 +63,10 @@ $('exam').oninput=save;
 function drawSetup(){$('qcount').value=N;
  const k=$('key');k.innerHTML='';for(let q=0;q<N;q++){const r=document.createElement('div');r.className='kr';r.innerHTML='<b>'+(q+1)+'</b>';
   L.forEach((l,i)=>{const b=document.createElement('button');b.textContent=l;const selected=(Array.isArray(key[q])?key[q]:[key[q]]).filter(Number.isInteger);if(selected.includes(i))b.className='on';b.onclick=()=>{let next=(Array.isArray(key[q])?key[q]:[key[q]]).filter(Number.isInteger);if(next.includes(i))next=next.filter(x=>x!==i);else next.push(i);key[q]=next.sort();save();drawSetup();renderList()};r.append(b)});k.append(r)}}
-function setQuestionCount(){const n=Number($('qcount').value);if(!Number.isInteger(n)||n<1||n>50){$('qcount').value=N;alert('Enter a whole number between 1 and 50.');return}if(n!==N){N=n;save();drawSetup();renderList()}}
+function setQuestionCount(){const n=Number($('qcount').value);if(!Number.isInteger(n)||n<1||n>50){$('qcount').value=N;alert('Enter a whole number between 1 and 50.');return}if(n!==N){N=n;results=[];save();drawSetup();renderList()}}
 $('qcount').onchange=setQuestionCount;
 const keyOK=()=>{for(let q=0;q<N;q++){const a=(Array.isArray(key[q])?key[q]:[key[q]]).filter(Number.isInteger);if(!a.length||a.some(x=>x<0||x>3))return false}return true};
-function score(r){let c=0,w=0,b=0,d=0;const st=[];for(let q=0;q<N;q++){const marked=Array.isArray(r.selected?.[q])?r.selected[q]:[];const expected=Array.isArray(key[q])?key[q]:[key[q]];if(!marked.length){b++;w++;st.push('w')}else if(marked.length>1){d++;w++;st.push('d')}else if(expected.includes(marked[0])){c++;st.push('c')}else{w++;st.push('w')}}Object.assign(r,{correct:c,wrong:w,blank:b,double:d,status:st})}
+function score(r){const total=Math.min(Number.isInteger(r.total)?r.total:N,N);let c=0,w=0,b=0,d=0;const st=[];for(let q=0;q<total;q++){const marked=Array.isArray(r.selected?.[q])?r.selected[q]:[];const expected=(Array.isArray(key[q])?key[q]:[key[q]]).filter(Number.isInteger);if(!marked.length){b++;w++;st.push('w')}else if(marked.length>1){d++;w++;st.push('d')}else if(expected.includes(marked[0])){c++;st.push('c')}else{w++;st.push('w')}}Object.assign(r,{correct:c,wrong:w,blank:b,double:d,status:st,total})}
 
 async function scanFile(file){const fd=new FormData();fd.append('file',file,file.name);fd.append('n',N);fd.append('key',JSON.stringify(key.slice(0,N)));
  try{const r=await fetch('/api/scan',{method:'POST',body:fd});const j=await r.json();if(!r.ok)throw new Error(j.error||'Server error');return j.results}
@@ -91,10 +91,11 @@ function renderList(){const el=$('list');el.innerHTML='';$('resc').hidden=!resul
   const roll=d.querySelector('.roll'),nm=d.querySelector('.nm');roll.value=r.roll||'';nm.value=r.name||'';
   const chk=()=>roll.classList.toggle('bad',/[?*]/.test(roll.value));chk();
   roll.oninput=()=>{r.roll=roll.value;chk()};nm.oninput=()=>{r.name=nm.value};
-  d.querySelector('.score').textContent=r.correct+' / '+N;
-  d.querySelector('.st').innerHTML='<b>'+r.file.replace(/[<>&]/g,'')+'</b> · Correct <b>'+r.correct+'</b> · Wrong <b>'+r.wrong+'</b> · Blank <b>'+r.blank+'</b> · Double <b>'+r.double+'</b>';
+  const total=Math.min(Number.isInteger(r.total)?r.total:N,N);
+  d.querySelector('.score').textContent=r.correct+' / '+total;
+  d.querySelector('.st').innerHTML='<b>'+r.file.replace(/[<>&]/g,'')+'</b> · Scanned <b>'+total+'</b> · Correct <b>'+r.correct+'</b> · Wrong <b>'+r.wrong+'</b> · Blank <b>'+r.blank+'</b> · Double <b>'+r.double+'</b>';
   const detail=d.querySelector('.answers');
-  for(let q=0;q<N;q++){const marked=Array.isArray(r.selected?.[q])?r.selected[q]:[];const expected=(Array.isArray(key[q])?key[q]:[key[q]]).filter(Number.isInteger);const label=marked.length?marked.map(i=>L[i]).join('+'):'Blank';const expectedLabel=expected.map(i=>L[i]).join('/')||'-';const cls=!marked?'bad':marked.length>1?'dbl':expected.includes(marked[0])?'ok':'bad';const s=document.createElement('span');s.className=cls;s.textContent=(q+1)+': '+label+' (key '+expectedLabel+')';detail.append(s)}
+  for(let q=0;q<total;q++){const marked=Array.isArray(r.selected?.[q])?r.selected[q]:[];const expected=(Array.isArray(key[q])?key[q]:[key[q]]).filter(Number.isInteger);const label=marked.length?marked.map(i=>L[i]).join('+'):'Blank';const expectedLabel=expected.map(i=>L[i]).join('/')||'-';const cls=!marked?'bad':marked.length>1?'dbl':expected.includes(marked[0])?'ok':'bad';const s=document.createElement('span');s.className=cls;s.textContent=(q+1)+': '+label+' (key '+expectedLabel+')';detail.append(s)}
   if(/[?*]/.test(r.roll||''))Object.assign(d.querySelector('.warn'),{hidden:false,textContent:'The roll number could not be read completely (? = no bubble, * = multiple bubbles). Correct it manually.'});
   let img=null;d.querySelector('.tg').onclick=()=>{if(img){img.remove();img=null;return}img=new Image();img.src=r.overlay;d.append(img)};
   d.querySelector('.rm').onclick=()=>{results=results.filter(x=>x!==r);renderList()};el.append(d)});
