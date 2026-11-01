@@ -208,7 +208,9 @@ def _mark_fraction(R, x, y, base):
 
 def _portrait_marked(R, x, y, base):
     """Detect ink inside a portrait-layout bubble, independently of its printed outline."""
-    patch = _patch(R, x, y, 9).astype(np.float32)
+    patch = R[y - 9:y + 10, x - 9:x + 10].astype(np.float32)
+    if patch.shape != (19, 19):
+        return False
     yy, xx = np.ogrid[-9:10, -9:10]
     radius = np.sqrt(xx * xx + yy * yy)
     # Ignore the printed bubble border: only inspect its central fill area.
