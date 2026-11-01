@@ -5,7 +5,8 @@ read roll numbers, and export the results to Excel.
 
 ## Files
 - `app.py` – Flask server (API + page)
-- `omr.py` – OMR engine (OpenCV): sheet align, bubble read, roll read
+- `omr.py` – OMR engine (OpenCV): sheet alignment, bubble reading, roll reading, and quarter-turn photo correction
+- `omr_patch.py` – compatibility handling for the alternate 30-question portrait layout and multi-answer keys
 - `static/index.html` – user interface
 - `requirements.txt`, `render.yaml` – Render deploy config
 
@@ -39,5 +40,8 @@ python app.py        # http://localhost:5000
 - The standard final sheet measures the four answer bubbles in each answer block independently after page rectification. Question-number text columns are excluded, and the six roll-number columns are fitted separately from their ten digit rows.
 - Answer marking accepts either a dark bubble or a dark four-corner square fill when at least 15% of the inner mark area is filled. The 50-question geometry is fitted once per uploaded page and reused for all rows, including partially filled marks.
 - The answer key supports multiple correct options. A student answer is correct when exactly one option is marked and it is one of the configured correct options; multiple student marks are wrong. Blank answers are displayed as blank but included in the wrong count. Selecting all four key options makes any single student option correct.
+- The calibrated 50-question layout now tries all four 90-degree camera orientations before alignment, so sideways phone photos can be normalized automatically.
+- Overlay highlights the student's actual selected bubbles, including every mark in a double-marked question, and supports multiple accepted answers in the key.
+- Regression tests run with GitHub Actions on pushes and pull requests (`python -m unittest discover -s tests -v`).
 - For best results, keep the entire sheet in frame, use good lighting, hold it straight, and avoid shadows. Keep PDFs to about 30 pages per upload.
 - Both ballpoint and pencil marks are supported. Verify faint marks using **View overlay**.
