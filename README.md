@@ -18,7 +18,6 @@ python app.py        # http://localhost:5000
 ## Render-e deploy (step by step)
 1. Ei project already GitHub-e push kora ache: [MMunna5/OMR_Scaner](https://github.com/MMunna5/OMR_Scaner).
 2. Render.com-e GitHub diye login koro → **New + → Web Service** → `OMR_Scaner` repo select koro.
-3. render.com-e GitHub diye login koro → **New + → Web Service** → tomar `omr-scanner` repo select koro.
 3. Settings:
    - Runtime: **Python 3**
    - Build Command: `pip install -r requirements.txt`
@@ -27,7 +26,7 @@ python app.py        # http://localhost:5000
    - Environment variable: `PYTHON_VERSION` = `3.11.9`
    (Ba **New + → Blueprint** chaple `render.yaml` theke automatic hoye jabe.)
 4. **Create Web Service** → 3-5 minute build hobe. Shesh hole `https://omr-scanner-xxxx.onrender.com` link pabe. Ei link-i shobaike dao.
-6. Code bodle: GitHub-e file replace/commit korlei Render auto redeploy kore.
+5. Code bodle: GitHub-e file replace/commit korlei Render auto redeploy kore.
 
 ## Notes
 - Free plan-e 15 min kew na use korle server ghumiye jay; prothom open-e ~1 minute lage.
