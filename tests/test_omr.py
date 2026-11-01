@@ -52,6 +52,31 @@ class OMRCoreTests(unittest.TestCase):
         cv2.rectangle(red_channel, (26, 26), (34, 34), 25, -1)
         self.assertGreaterEqual(omr._box_mark_fraction(red_channel, 30, 30, 220, 11, 8), .15)
 
+    def test_box_marking_detects_off_center_ink_across_full_answer_cell(self):
+        cell = np.full((70, 70), 180, dtype=np.uint8)
+        # Simulated printed red outline/letter is lighter than the ink threshold.
+        cv2.ellipse(cell, (30, 30), (20, 13), 0, 0, 360, 130, 2)
+        cv2.line(cell, (25, 30), (35, 30), 125, 2)
+        self.assertLess(omr._box_mark_fraction(cell, 30, 30, 180, 22, 15), .15)
+
+        # A real mark shifted down and right must still belong to this cell.
+        cv2.circle(cell, (44, 39), 11, 15, -1)
+        self.assertGreaterEqual(omr._box_mark_fraction(cell, 30, 30, 180, 22, 15), .15)
+
+    def test_roll_reader_uses_full_cell_and_reads_six_digits(self):
+        image = np.full((250, 240), 180, dtype=np.uint8)
+        grid = np.asarray([
+            [(30 + col * 30, 25 + row * 20) for row in range(10)]
+            for col in range(6)
+        ], dtype=np.float32)
+        expected = [1, 2, 3, 4, 5, 6]
+        for col, digit in enumerate(expected):
+            x, y = grid[col, digit]
+            cv2.circle(image, (int(x + 7), int(y + 5)), 8, 15, -1)
+        roll, _, selected = omr._read_box_roll(image, grid)
+        self.assertEqual(roll, '123456')
+        self.assertEqual(selected, [[1], [2], [3], [4], [5], [6]])
+
     def test_answer_scoring_handles_correct_wrong_blank_and_double(self):
         gray = np.full((1400, 1500), 245, dtype=np.uint8)
         points = []
