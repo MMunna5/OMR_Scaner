@@ -60,7 +60,7 @@ video{display:block;width:100%;aspect-ratio:4/3;object-fit:contain;border-radius
 <div class="bar" id="bar" hidden><i id="barin"></i></div><p class="s" id="status"></p></section>
 
 <section class="card" id="resc" hidden><h2>3. Results <span class="s" id="sum"></span></h2>
-<p class="s legend"><span class="right">Right answer = green</span> · <span class="bad">Your wrong/blank/multiple answer = red</span></p>
+<p class="s legend"><span class="right">Right answer = green</span> · <span class="bad">Wrong/blank/multiple = red</span><br>প্রতিটি প্রশ্নের ক / খ / গ / ঘ বাটনে চাপ দিয়ে উত্তর ঠিক করুন। একাধিক দাগ থাকলে একাধিক অপশন বেছে নিন; Clear চাপলে উত্তর ফাঁকা হবে।</p>
 <div class="row"><button class="p" id="bexp">⬇ Export to Excel (.xlsx)</button><button id="bclr">Clear all results</button></div><div id="list"></div></section>
 
 <script>
@@ -120,7 +120,7 @@ function renderList(){const el=$('list');el.innerHTML='';$('resc').hidden=!resul
    card.append(edit);detail.append(card);
   }
   if(/[?*]/.test(r.roll||''))Object.assign(d.querySelector('.warn'),{hidden:false,textContent:'The roll number could not be read completely (? = no bubble, * = multiple bubbles). Correct it manually.'});
-  let img=null;d.querySelector('.tg').onclick=()=>{if(img){img.remove();img=null;return}img=new Image();img.src=r.overlay;d.append(img)};
+  let img=null;d.querySelector('.tg').onclick=()=>{if(img){img.remove();img=null;return}img=new Image();img.src=r.overlay;img.alt='Original scanned OMR overlay';detail.before(img)};
   d.querySelector('.rm').onclick=()=>{results=results.filter(x=>x!==r);renderList()};el.append(d)});
  $('sum').textContent=cnt?'· '+cnt+' sheet(s) · average '+(tot/cnt).toFixed(1)+' / '+N:''}
 
