@@ -368,7 +368,7 @@ def _scan_answers(R, points, n, key, width, snapped=None):
         if not mk:
             ans.append('-'); st.append('b'); bl += 1; wr += 1
         elif len(mk) > 1:
-            ans.append('*'); st.append('d'); db += 1
+            ans.append('*'); st.append('d'); db += 1; wr += 1
         elif mk[0] in expected:
             ans.append(L[mk[0]]); st.append('c'); cor += 1
         else:
