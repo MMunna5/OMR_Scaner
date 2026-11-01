@@ -18,6 +18,21 @@ class OMRCoreTests(unittest.TestCase):
         self.assertEqual(_safe_excel_text('=1+1'), "'=1+1")
         self.assertEqual(_safe_excel_text('Munna'), 'Munna')
 
+    def test_portrait_detector_ignores_outline_but_reads_filled_bubble(self):
+        blank = np.full((25, 25), 185, dtype=np.uint8)
+        cv2.circle(blank, (12, 12), 8, 35, 1)
+        self.assertFalse(omr._portrait_marked(blank, 12, 12, 180))
+
+        filled = blank.copy()
+        cv2.circle(filled, (12, 12), 5, 25, -1)
+        self.assertTrue(omr._portrait_marked(filled, 12, 12, 180))
+
+    def test_portrait_detector_reads_mark_on_tinted_paper(self):
+        tinted = np.full((25, 25), 145, dtype=np.uint8)
+        cv2.circle(tinted, (12, 12), 8, 65, 1)
+        cv2.circle(tinted, (12, 12), 4, 55, -1)
+        self.assertTrue(omr._portrait_marked(tinted, 12, 12, 140))
+
     def test_answer_scoring_handles_correct_wrong_blank_and_double(self):
         gray = np.full((1400, 1500), 245, dtype=np.uint8)
         points = []
