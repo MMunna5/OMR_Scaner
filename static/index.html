@@ -20,10 +20,10 @@ video{display:block;width:100%;aspect-ratio:4/3;object-fit:contain;border-radius
 .res{border:1px solid var(--bd);border-radius:12px;padding:10px;margin-top:10px}.res.err{border-color:var(--ac)}
 .top{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}.score{font-size:24px;font-weight:700}
 .st{font-size:13px;color:var(--mu)}.st b{color:var(--tx)}.res img{width:100%;border-radius:8px;margin-top:8px}
-.answers{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;margin-top:8px;font-size:12px}
-.answers span{padding:5px 3px;border-radius:6px;text-align:center;background:var(--bd)}
-.answers .ok{background:#c8e6c9;color:#1b5e20}.answers .bad{background:#ffcdd2;color:#8e0000}.answers .dbl{background:#ffe0b2;color:#7a4100}
-.legend .ok,.legend .bad,.legend .dbl{font-weight:700}
+.answers{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px;font-size:12px}
+.answers .qanswer{padding:7px;border-radius:6px;background:var(--bd)}
+.answers .right{color:#1b5e20;font-weight:700}.answers .right b,.answers .your b{font-weight:700}
+.answers .your.ok{color:#1b5e20}.answers .your.bad{color:#8e0000}
 .bar{height:6px;background:var(--bd);border-radius:3px;overflow:hidden;margin-top:8px}.bar i{display:block;height:100%;background:var(--ac);width:0}
 .warn{color:var(--ac);font-size:13px;margin:6px 0 0}
 @media (max-width:600px){
@@ -53,7 +53,7 @@ video{display:block;width:100%;aspect-ratio:4/3;object-fit:contain;border-radius
 <div class="bar" id="bar" hidden><i id="barin"></i></div><p class="s" id="status"></p></section>
 
 <section class="card" id="resc" hidden><h2>3. Results <span class="s" id="sum"></span></h2>
-<p class="s legend"><span class="ok">Green = correct</span> · <span class="bad">Red = wrong or blank</span> · <span class="dbl">Orange = multiple options marked (wrong)</span></p>
+<p class="s legend"><span class="right">Right answer = green</span> · <span class="bad">Your wrong/blank/multiple answer = red</span></p>
 <div class="row"><button class="p" id="bexp">⬇ Export to Excel (.xlsx)</button><button id="bclr">Clear all results</button></div><div id="list"></div></section>
 
 <script>
@@ -97,7 +97,7 @@ function renderList(){const el=$('list');el.innerHTML='';$('resc').hidden=!resul
   d.querySelector('.score').textContent=r.correct+' / '+total;
   d.querySelector('.st').innerHTML='<b>'+r.file.replace(/[<>&]/g,'')+'</b> · Scanned <b>'+total+'</b> · Correct <b>'+r.correct+'</b> · Wrong <b>'+r.wrong+'</b> · Blank <b>'+r.blank+'</b> · Double <b>'+r.double+'</b>';
   const detail=d.querySelector('.answers');
-  for(let q=0;q<total;q++){const marked=Array.isArray(r.selected?.[q])?r.selected[q]:[];const expected=(Array.isArray(key[q])?key[q]:[key[q]]).filter(Number.isInteger);const label=marked.length?marked.map(i=>L[i]).join('+'):'Blank';const expectedLabel=expected.map(i=>L[i]).join('/')||'-';const cls=!marked?'bad':marked.length>1?'dbl':expected.includes(marked[0])?'ok':'bad';const s=document.createElement('span');s.className=cls;s.textContent=(q+1)+': '+label+' (key '+expectedLabel+')';detail.append(s)}
+  for(let q=0;q<total;q++){const marked=Array.isArray(r.selected?.[q])?r.selected[q]:[];const expected=(Array.isArray(key[q])?key[q]:[key[q]]).filter(Number.isInteger);const label=marked.length?marked.map(i=>L[i]).join('+'):'Blank';const expectedLabel=expected.map(i=>L[i]).join('/')||'-';const correct=marked.length===1&&expected.includes(marked[0]);const s=document.createElement('span');s.className='qanswer';s.innerHTML='<b>Q'+(q+1)+'</b><br><span class="right">Right: '+expectedLabel+'</span><br><span class="your '+(correct?'ok':'bad')+'">Your: '+label+'</span>';detail.append(s)}
   if(/[?*]/.test(r.roll||''))Object.assign(d.querySelector('.warn'),{hidden:false,textContent:'The roll number could not be read completely (? = no bubble, * = multiple bubbles). Correct it manually.'});
   let img=null;d.querySelector('.tg').onclick=()=>{if(img){img.remove();img=null;return}img=new Image();img.src=r.overlay;d.append(img)};
   d.querySelector('.rm').onclick=()=>{results=results.filter(x=>x!==r);renderList()};el.append(d)});
