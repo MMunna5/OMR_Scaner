@@ -35,5 +35,6 @@ python app.py        # http://localhost:5000
 - The scanner is calibrated only for this specific sheet (top black boxes, bottom tick marks, 50-question layout, and six-digit roll number).
 - You can choose any whole-number question count from 1 to 50. Counts above 50 are not supported because the sheet layout is calibrated for a maximum of 50 questions.
 - A portrait answer sheet without the calibrated anchor marks is also supported through the fallback layout detector. The current fallback profile supports the common 30-question, two-block format; its roll number is left for manual correction.
+- Portrait fallback processing uses the detected page aspect ratio and dynamically fitted bubble rows/columns rather than a fixed image size, so rotated or differently cropped camera photos can be normalized before reading.
 - For best results, keep the entire sheet in frame, use good lighting, hold it straight, and avoid shadows. Keep PDFs to about 30 pages per upload.
 - Both ballpoint and pencil marks are supported. Verify faint marks using **View overlay**.

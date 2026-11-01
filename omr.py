@@ -87,9 +87,15 @@ def _rectify_page(img):
     d = np.diff(best, axis=1).ravel()
     src = np.float32([best[np.argmin(s)], best[np.argmin(d)],
                       best[np.argmax(s)], best[np.argmax(d)]])
-    dst = np.float32([[0, 0], [1000, 0], [1000, 1400], [0, 1400]])
-    return cv2.warpPerspective(img, cv2.getPerspectiveTransform(src, dst), (1000, 1400),
-                               flags=cv2.INTER_CUBIC)
+    width = max(np.linalg.norm(src[1] - src[0]), np.linalg.norm(src[2] - src[3]))
+    height = max(np.linalg.norm(src[3] - src[0]), np.linalg.norm(src[2] - src[1]))
+    target_width = 1000
+    target_height = max(1000, min(1800, round(target_width * height / max(width, 1))))
+    dst = np.float32([[0, 0], [target_width, 0], [target_width, target_height],
+                      [0, target_height]])
+    return cv2.warpPerspective(
+        img, cv2.getPerspectiveTransform(src, dst), (target_width, target_height),
+        flags=cv2.INTER_CUBIC)
 
 
 def rectify(img):
@@ -171,10 +177,10 @@ def _portrait_marked(R, x, y, base):
     return mean < min(40, base * .38) and dark_fraction >= .45
 
 
-def _portrait_points():
+def _portrait_points(width=1000, height=1400):
     """Answer positions for the common 30-question portrait sheet: two blocks of 15."""
     xs = ([.19, .232, .276, .318], [.442, .480, .520, .560])
-    return [(x * 1000, (.31 + .04 * (q % 15)) * 1400)
+    return [(x * width, (.31 + .04 * (q % 15)) * height)
             for q in range(30) for x in xs[q // 15]]
 
 
@@ -222,16 +228,21 @@ def _portrait_grid(R):
     if circles is None or len(circles[0]) < 40:
         raise ScanError('Could not locate the answer grid. Use a clearer, fully visible photo.')
     c = circles[0]
-    c = c[(c[:, 0] > 150) & (c[:, 0] < 590) & (c[:, 1] > 380) & (c[:, 1] < 1320)]
+    height, width = R.shape
+    c = c[(c[:, 0] > .15 * width) & (c[:, 0] < .62 * width) &
+          (c[:, 1] > .25 * height) & (c[:, 1] < .95 * height)]
     if len(c) < 40:
         raise ScanError('Could not locate enough answer bubbles. Capture the full sheet without obstruction.')
-    left = c[(c[:, 0] > 210) & (c[:, 0] < 380)]
-    right = c[(c[:, 0] > 420) & (c[:, 0] < 580)]
+    left = c[(c[:, 0] > .18 * width) & (c[:, 0] < .40 * width)]
+    right = c[(c[:, 0] > .42 * width) & (c[:, 0] < .62 * width)]
     if len(left) < 20 or len(right) < 20:
         raise ScanError('Could not separate the two answer blocks.')
-    left_x = _fit_axis(left[:, 0], 4, 210, 400, 35, 50)
-    right_x = _fit_axis(right[:, 0], 4, 420, 600, 30, 50)
-    ys = _fit_axis(c[:, 1], 15, 420, 1320, 48, 68)
+    left_x = _fit_axis(left[:, 0], 4, .18 * width, .40 * width,
+                       .035 * width, .05 * width)
+    right_x = _fit_axis(right[:, 0], 4, .42 * width, .62 * width,
+                        .03 * width, .05 * width)
+    ys = _fit_axis(c[:, 1], 15, .28 * height, .95 * height,
+                   .035 * height, .06 * height)
     points = []
     for columns in (left_x, right_x):
         for row in ys:
@@ -281,7 +292,7 @@ def scan(img, n, key):
         try:
             points = _portrait_grid(R)
         except ScanError:
-            points = _portrait_points()
+            points = _portrait_points(w.shape[1], w.shape[0])
         points = [
             points[row * 8 + col]
             for block_start in (0, 4)
