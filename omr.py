@@ -266,12 +266,18 @@ def _standard_grid(R):
           (c[:, 1] > .22 * height) & (c[:, 1] < .90 * height)]
     if len(c) < 100:
         raise ScanError('Could not locate enough answer bubbles.')
-    xs = _fit_axis(c[:, 0], 10, .45 * width, .82 * width,
-                   .025 * width, .07 * width)
+    left = c[(c[:, 0] > .48 * width) & (c[:, 0] < .63 * width)]
+    right = c[(c[:, 0] > .68 * width) & (c[:, 0] < .83 * width)]
+    if len(left) < 40 or len(right) < 40:
+        raise ScanError('Could not separate the two answer option blocks.')
+    left_x = _fit_axis(left[:, 0], 4, .48 * width, .63 * width,
+                        .025 * width, .05 * width)
+    right_x = _fit_axis(right[:, 0], 4, .68 * width, .83 * width,
+                         .025 * width, .05 * width)
     ys = _fit_axis(c[:, 1], 25, .24 * height, .90 * height,
                    .018 * height, .04 * height)
     points = []
-    for columns in (xs[1:5], xs[6:10]):
+    for columns in (left_x, right_x):
         for row in ys:
             for col in columns:
                 d = np.linalg.norm(c[:, :2] - np.array([col, row]), axis=1)

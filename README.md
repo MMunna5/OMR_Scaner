@@ -36,6 +36,6 @@ python app.py        # http://localhost:5000
 - You can choose any whole-number question count from 1 to 50. Counts above 50 are not supported because the sheet layout is calibrated for a maximum of 50 questions.
 - A portrait answer sheet without the calibrated anchor marks is also supported through the fallback layout detector. The current fallback profile supports the common 30-question, two-block format; its roll number is left for manual correction.
 - Portrait fallback processing uses the detected page aspect ratio and dynamically fitted bubble rows/columns rather than a fixed image size, so rotated or differently cropped camera photos can be normalized before reading.
-- The standard final sheet also fits its answer and roll-number grids from the detected bubble geometry after page rectification, so the final template is not dependent on one fixed pixel size.
+- The standard final sheet measures the four answer bubbles in each answer block independently after page rectification. Question-number text columns are excluded, and the six roll-number columns are fitted separately from their ten digit rows.
 - For best results, keep the entire sheet in frame, use good lighting, hold it straight, and avoid shadows. Keep PDFs to about 30 pages per upload.
 - Both ballpoint and pencil marks are supported. Verify faint marks using **View overlay**.
