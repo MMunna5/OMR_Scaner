@@ -252,6 +252,54 @@ def _portrait_grid(R):
     return points
 
 
+def _standard_grid(R):
+    """Fit the two 25-question answer blocks from the detected bubble circles."""
+    gray = cv2.medianBlur(R, 5)
+    circles = cv2.HoughCircles(
+        gray, cv2.HOUGH_GRADIENT, dp=1, minDist=16, param1=70, param2=18,
+        minRadius=8, maxRadius=20)
+    if circles is None:
+        raise ScanError('Could not locate the answer grid.')
+    height, width = R.shape
+    c = circles[0]
+    c = c[(c[:, 0] > .45 * width) & (c[:, 0] < .98 * width) &
+          (c[:, 1] > .22 * height) & (c[:, 1] < .90 * height)]
+    if len(c) < 100:
+        raise ScanError('Could not locate enough answer bubbles.')
+    xs = _fit_axis(c[:, 0], 10, .45 * width, .82 * width,
+                   .025 * width, .07 * width)
+    ys = _fit_axis(c[:, 1], 25, .24 * height, .90 * height,
+                   .018 * height, .04 * height)
+    points = []
+    for columns in (xs[1:5], xs[6:10]):
+        for row in ys:
+            for col in columns:
+                d = np.linalg.norm(c[:, :2] - np.array([col, row]), axis=1)
+                points.append(c[d.argmin(), :2] if d.min() < 30 else (col, row))
+    return points
+
+
+def _standard_roll_grid(R):
+    """Fit the six roll-number columns in the upper-left identification block."""
+    gray = cv2.medianBlur(R, 5)
+    circles = cv2.HoughCircles(
+        gray, cv2.HOUGH_GRADIENT, dp=1, minDist=16, param1=70, param2=18,
+        minRadius=8, maxRadius=20)
+    if circles is None:
+        raise ScanError('Could not locate the roll-number grid.')
+    height, width = R.shape
+    c = circles[0]
+    c = c[(c[:, 0] > .10 * width) & (c[:, 0] < .36 * width) &
+          (c[:, 1] > .24 * height) & (c[:, 1] < .50 * height)]
+    if len(c) < 40:
+        raise ScanError('Could not locate enough roll-number bubbles.')
+    xs = _fit_axis(c[:, 0], 6, .10 * width, .36 * width,
+                   .02 * width, .06 * width)
+    ys = _fit_axis(c[:, 1], 10, .24 * height, .50 * height,
+                   .015 * height, .04 * height)
+    return [(x, y) for x in xs for y in ys]
+
+
 def _scan_answers(R, points, n, key, width, snapped=None):
     pts = np.array(points, np.float32).reshape(30 if width == 1000 else 50, 4, 2)
     inner = np.array([[_inner(R, *pts[q, k]) for k in range(4)]
@@ -319,12 +367,25 @@ def scan(img, n, key):
     c = cv2.HoughCircles(g, cv2.HOUGH_GRADIENT, dp=1, minDist=20, param1=70, param2=18, minRadius=9, maxRadius=17)
     circles = c[0] if c is not None else np.zeros((0, 3), np.float32)
 
-    exp = [(A + U[q // 25][k] * S, A + (V0 + DV * (q % 25)) * S) for q in range(50) for k in range(4)]
+    try:
+        dynamic_points = _standard_grid(cv2.cvtColor(w, cv2.COLOR_BGR2GRAY))
+    except ScanError:
+        dynamic_points = None
+    if dynamic_points is not None:
+        pts, inner, ans, st, cor, wr, bl, db = _scan_answers(
+            R, dynamic_points, n, key, 1500)
+        spts = pts
+    else:
+        exp = [(A + U[q // 25][k] * S, A + (V0 + DV * (q % 25)) * S)
+               for q in range(50) for k in range(4)]
+        Hf = _fit_H(exp, circles)
+        pts, spts = (a.reshape(50, 4, 2) for a in _snap(exp, circles, Hf))
+        pts, inner, ans, st, cor, wr, bl, db = _scan_answers(
+            R, pts.reshape(-1, 2), n, key, 1500, spts)
+    exp = [(A + U[q // 25][k] * S, A + (V0 + DV * (q % 25)) * S)
+           for q in range(50) for k in range(4)]
     rexp = [(A + RU[c_] * S, A + (RV0 + RDV * r_) * S) for c_ in range(6) for r_ in range(10)]
     Hf = _fit_H(exp, circles)
-    pts, spts = (a.reshape(50, 4, 2) for a in _snap(exp, circles, Hf))
-    pts, inner, ans, st, cor, wr, bl, db = _scan_answers(
-        R, pts.reshape(-1, 2), n, key, 1500, spts)
 
     rfit = cv2.perspectiveTransform(np.array(rexp, np.float32)[None], Hf)[0]
     if len(circles):   # small local shift for the roll block (it sits far from the answer grid)
@@ -342,7 +403,12 @@ def scan(img, n, key):
             Hf_roll = Hf
     else:
         Hf_roll = Hf
-    rp, rsp = (a.reshape(6, 10, 2) for a in _snap(rexp, circles, Hf_roll))
+    try:
+        rp = np.array(_standard_roll_grid(cv2.cvtColor(w, cv2.COLOR_BGR2GRAY)),
+                      np.float32).reshape(6, 10, 2)
+        rsp = rp
+    except ScanError:
+        rp, rsp = (a.reshape(6, 10, 2) for a in _snap(rexp, circles, Hf_roll))
     roll = ''
     for c_ in range(6):
         col = np.array([_inner(R, *rp[c_, r_]) for r_ in range(10)])
