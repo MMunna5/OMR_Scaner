@@ -166,7 +166,22 @@ def _inner(R, x, y):
 
 def _is_marked(R, pts, base):
     """Marked when >=30% of the bubble disc is clearly darker than local paper (checks nominal and snapped centre)."""
-    return max(float((_patch(R, x, y) < base * .72).mean()) for x, y in pts) >= .30
+    return any(_mark_fraction(R, x, y, base) >= .25 for x, y in pts)
+
+
+def _mark_fraction(R, x, y, base):
+    """Measure ink in the bubble and its four-corner box, excluding the border."""
+    x, y = int(round(x)), int(round(y))
+    patch = R[y - 11:y + 12, x - 11:x + 12]
+    if patch.shape != (23, 23):
+        return 0.0
+    dark = patch < min(150, base * .72)
+    yy, xx = np.ogrid[-11:12, -11:12]
+    circle = (xx * xx + yy * yy) <= 9 * 9
+    circle_fraction = float(dark[circle].mean())
+    box = patch[4:19, 4:19]
+    box_fraction = float((box < min(150, base * .72)).mean())
+    return max(circle_fraction, box_fraction)
 
 
 def _portrait_marked(R, x, y, base):
