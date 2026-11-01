@@ -124,12 +124,12 @@ def rectify(img):
         break
 
     if detected is None:
-        # The unmarked fallback layout is portrait-only. Normalize sideways
-        # phone captures before trying page-boundary rectification.
-        candidate = img
-        if candidate.shape[1] > candidate.shape[0]:
-            candidate = cv2.rotate(candidate, cv2.ROTATE_90_COUNTERCLOCKWISE)
-        return _rectify_page(candidate), 'portrait30'
+        # This school's 50-question sheet must be aligned from its printed
+        # top and bottom registration marks. Never guess a different layout.
+        raise ScanError(
+            'Could not align the OMR sheet. Upload a clear photo showing the '
+            'full page, including the top red alignment boxes and bottom red bars.'
+        )
 
     candidate, scale, ((tl, tr), (bl, br)) = detected
     src = np.float32([tl, tr, br, bl]) / scale
@@ -334,6 +334,94 @@ def _standard_grid(R):
     return points
 
 
+def _bilinear_box(tl, tr, br, bl, u, v):
+    """Map normalized (u, v) coordinates through a four-corner quadrilateral."""
+    top = np.asarray(tl, np.float32) * (1.0 - u) + np.asarray(tr, np.float32) * u
+    bottom = np.asarray(bl, np.float32) * (1.0 - u) + np.asarray(br, np.float32) * u
+    return top * (1.0 - v) + bottom * v
+
+
+def _four_corner_answer_grid():
+    """Build Q1-25 and Q26-50 independently from each answer box's four corners."""
+    # Corners enclose only the four answer-option columns, not the question-number column.
+    boxes = (
+        ((730, 330), (925, 330), (925, 1170), (730, 1170)),
+        ((1015, 330), (1215, 330), (1215, 1170), (1015, 1170)),
+    )
+    option_u = (.128, .369, .626, .877)
+    row_v = [.030 + i * (.947 / 24.0) for i in range(25)]
+    points = []
+    for corners in boxes:
+        for v in row_v:
+            for u in option_u:
+                points.append(_bilinear_box(*corners, u, v))
+    return np.asarray(points, np.float32)
+
+
+def _four_corner_roll_grid():
+    """Build the six-digit, ten-row roll grid from its own four-corner box."""
+    corners = ((180, 330), (375, 330), (375, 590), (180, 590))
+    col_u = (.077, .247, .416, .585, .753, .923)
+    row_v = [.050 + i * (.896 / 9.0) for i in range(10)]
+    return np.asarray([
+        _bilinear_box(*corners, u, v)
+        for u in col_u for v in row_v
+    ], np.float32).reshape(6, 10, 2)
+
+
+def _box_mark_fraction(R, x, y, base, half_w, half_h):
+    """Ink ratio inside a rectangular bubble cell, excluding its printed border."""
+    x, y = int(round(x)), int(round(y))
+    patch = R[y - half_h:y + half_h + 1, x - half_w:x + half_w + 1]
+    if patch.shape != (2 * half_h + 1, 2 * half_w + 1):
+        return 0.0
+    threshold = min(150.0, max(45.0, float(base) * .72))
+    return float((patch < threshold).mean())
+
+
+def _scan_box_answers(R, points, n, key):
+    """Read the two 25-row answer boxes using fixed four-corner geometry and 15% ink."""
+    pts = np.asarray(points, np.float32).reshape(50, 4, 2)
+    inner = np.asarray([[_inner(R, *pts[q, k]) for k in range(4)]
+                        for q in range(50)])
+    answers, status, selected = [], [], []
+    correct = wrong = blank = double = 0
+    for q in range(n):
+        # Compare local four-option cells so paper shade changes do not move row geometry.
+        base = float(np.median(inner[max(0, q - 1):min(50, q + 2)]))
+        marked = [
+            k for k in range(4)
+            if _box_mark_fraction(R, *pts[q, k], base, 11, 8) >= .15
+        ]
+        selected.append(marked)
+        expected = key[q] if isinstance(key[q], (list, tuple, set)) else [key[q]]
+        if not marked:
+            answers.append('-'); status.append('b'); blank += 1; wrong += 1
+        elif len(marked) > 1:
+            answers.append('*'); status.append('d'); double += 1; wrong += 1
+        elif marked[0] in expected:
+            answers.append(L[marked[0]]); status.append('c'); correct += 1
+        else:
+            answers.append(L[marked[0]]); status.append('w'); wrong += 1
+    return pts, inner, answers, status, correct, wrong, blank, double, selected
+
+
+def _read_box_roll(R, points):
+    """Read each of six roll digits from its own ten-row rectangular bubble column."""
+    roll_points = np.asarray(points, np.float32).reshape(6, 10, 2)
+    digits, selected = [], []
+    for col in range(6):
+        means = np.asarray([_inner(R, *roll_points[col, row]) for row in range(10)])
+        base = float(np.median(means))
+        marked = [
+            row for row in range(10)
+            if _box_mark_fraction(R, *roll_points[col, row], base, 8, 8) >= .15
+        ]
+        selected.append(marked)
+        digits.append(str(marked[0]) if len(marked) == 1 else ('?' if not marked else '*'))
+    return ''.join(digits), roll_points, selected
+
+
 def _standard_roll_grid(R):
     """Fit the six roll-number columns in the upper-left identification block."""
     gray = cv2.medianBlur(R, 5)
@@ -422,69 +510,30 @@ def scan(img, n, key):
                     blank=bl, double=db, total=n, overlay='data:image/jpeg;base64,' +
                     base64.b64encode(buf).decode())
 
-    g = cv2.medianBlur(cv2.cvtColor(w, cv2.COLOR_BGR2GRAY), 5)
-    c = cv2.HoughCircles(g, cv2.HOUGH_GRADIENT, dp=1, minDist=20, param1=70, param2=18, minRadius=9, maxRadius=17)
-    circles = c[0] if c is not None else np.zeros((0, 3), np.float32)
-
-    try:
-        dynamic_points = _standard_grid(cv2.cvtColor(w, cv2.COLOR_BGR2GRAY))
-    except ScanError:
-        dynamic_points = None
-    if dynamic_points is not None:
-        pts, inner, ans, st, cor, wr, bl, db, selected = _scan_answers(
-            R, dynamic_points, n, key, 1500)
-        spts = pts
-    else:
-        exp = [(A + U[q // 25][k] * S, A + (V0 + DV * (q % 25)) * S)
-               for q in range(50) for k in range(4)]
-        Hf = _fit_H(exp, circles)
-        pts, spts = (a.reshape(50, 4, 2) for a in _snap(exp, circles, Hf))
-        pts, inner, ans, st, cor, wr, bl, db, selected = _scan_answers(
-            R, pts.reshape(-1, 2), n, key, 1500, spts)
-    exp = [(A + U[q // 25][k] * S, A + (V0 + DV * (q % 25)) * S)
-           for q in range(50) for k in range(4)]
-    rexp = [(A + RU[c_] * S, A + (RV0 + RDV * r_) * S) for c_ in range(6) for r_ in range(10)]
-    Hf = _fit_H(exp, circles)
-
-    rfit = cv2.perspectiveTransform(np.array(rexp, np.float32)[None], Hf)[0]
-    if len(circles):   # small local shift for the roll block (it sits far from the answer grid)
-        d = np.linalg.norm(rfit[:, None, :] - circles[None, :, :2], axis=2)
-        j = d.argmin(1)
-        ok = d[np.arange(60), j] < 30
-        if ok.sum() >= 15:
-            off = np.median(circles[j[ok], :2] - rfit[ok], axis=0)
-            if np.abs(off).max() < 30:
-                Hr = np.array([[1, 0, off[0]], [0, 1, off[1]], [0, 0, 1]])
-                Hf_roll = Hr @ Hf
-            else:
-                Hf_roll = Hf
-        else:
-            Hf_roll = Hf
-    else:
-        Hf_roll = Hf
-    try:
-        rp = np.array(_standard_roll_grid(cv2.cvtColor(w, cv2.COLOR_BGR2GRAY)),
-                      np.float32).reshape(6, 10, 2)
-        rsp = rp
-    except ScanError:
-        rp, rsp = (a.reshape(6, 10, 2) for a in _snap(rexp, circles, Hf_roll))
-    roll = ''
-    for c_ in range(6):
-        col = np.array([_inner(R, *rp[c_, r_]) for r_ in range(10)])
-        base = np.median(col)
-        mk = [r_ for r_ in range(10) if _is_marked(R, (rp[c_, r_], rsp[c_, r_]), base)]
-        roll += str(mk[0]) if len(mk) == 1 else ('?' if not mk else '*')
+    # The registration marks rectify the complete sheet into a stable coordinate
+    # system. Each answer section and the roll-number grid is then measured from
+    # its own four corners; Hough-circle centres are deliberately not used.
+    gray = cv2.cvtColor(w, cv2.COLOR_BGR2GRAY)
+    pts, inner, ans, st, cor, wr, bl, db, selected = _scan_box_answers(
+        R, _four_corner_answer_grid(), n, key
+    )
+    roll, roll_pts, roll_selected = _read_box_roll(R, _four_corner_roll_grid())
 
     ov = w.copy()
     for q in range(n):
         for k in range(4):
-            x, y = int(pts[q, k, 0]), int(pts[q, k, 1])
+            x, y = map(int, pts[q, k])
             expected = key[q] if isinstance(key[q], (list, tuple, set)) else [key[q]]
             if k in expected and st[q] in ('w', 'b', 'd'):
-                cv2.circle(ov, (x, y), 15, (255, 140, 0), 3)
+                cv2.rectangle(ov, (x - 13, y - 10), (x + 13, y + 10), (255, 140, 0), 2)
             if k in selected[q]:
                 color = (0, 170, 0) if st[q] == 'c' else ((0, 140, 255) if st[q] == 'd' else (0, 0, 230))
-                cv2.circle(ov, (x, y), 13, color, 4)
+                cv2.rectangle(ov, (x - 12, y - 9), (x + 12, y + 9), color, 3)
+    for col in range(6):
+        for row in range(10):
+            x, y = map(int, roll_pts[col, row])
+            if row in roll_selected[col]:
+                cv2.rectangle(ov, (x - 9, y - 9), (x + 9, y + 9), (0, 0, 230), 2)
     crop = ov[250:1200, 150:1300]
     crop = cv2.resize(crop, (800, int(800 * crop.shape[0] / crop.shape[1])), interpolation=cv2.INTER_AREA)
     ok, buf = cv2.imencode('.jpg', crop, [cv2.IMWRITE_JPEG_QUALITY, 70])
