@@ -24,6 +24,13 @@ video{display:block;width:100%;aspect-ratio:4/3;object-fit:contain;border-radius
 .answers .qanswer{padding:7px;border-radius:6px;background:var(--bd)}
 .answers .right{color:#1b5e20;font-weight:700}.answers .right b,.answers .your b{font-weight:700}
 .answers .your.ok{color:#1b5e20}.answers .your.bad{color:#8e0000}
+.answers .qanswer{padding:9px;border-radius:8px;background:var(--bd);min-width:0}
+.answers .right{color:#1b5e20;font-weight:700}.answers .your.ok{color:#1b5e20}.answers .your.bad{color:#8e0000}
+.answer-edit{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.answer-edit button{min-height:36px;min-width:38px;padding:5px 9px;border-radius:8px;font-weight:700}
+.answer-edit button.selected{background:var(--ac);border-color:var(--ac);color:#fff}
+.answer-edit button.clear{font-size:12px;min-width:auto;color:var(--mu)}
+.edit-hint{font-size:11px;color:var(--mu);margin-top:5px}
 .bar{height:6px;background:var(--bd);border-radius:3px;overflow:hidden;margin-top:8px}.bar i{display:block;height:100%;background:var(--ac);width:0}
 .warn{color:var(--ac);font-size:13px;margin:6px 0 0}
 @media (max-width:600px){
@@ -68,7 +75,7 @@ function drawSetup(){$('qcount').value=N;
 function setQuestionCount(){const n=Number($('qcount').value);if(!Number.isInteger(n)||n<1||n>50){$('qcount').value=N;alert('Enter a whole number between 1 and 50.');return}if(n!==N){N=n;results=[];save();drawSetup();renderList()}}
 $('qcount').onchange=setQuestionCount;
 const keyOK=()=>{for(let q=0;q<N;q++){const a=(Array.isArray(key[q])?key[q]:[key[q]]).filter(Number.isInteger);if(!a.length||a.some(x=>x<0||x>3))return false}return true};
-function score(r){const total=Math.min(Number.isInteger(r.total)?r.total:N,N);let c=0,w=0,b=0,d=0;const st=[];for(let q=0;q<total;q++){const marked=Array.isArray(r.selected?.[q])?r.selected[q]:[];const expected=(Array.isArray(key[q])?key[q]:[key[q]]).filter(Number.isInteger);if(!marked.length){b++;w++;st.push('w')}else if(marked.length>1){d++;w++;st.push('d')}else if(expected.includes(marked[0])){c++;st.push('c')}else{w++;st.push('w')}}Object.assign(r,{correct:c,wrong:w,blank:b,double:d,status:st,total})}
+function score(r){const total=Math.min(Number.isInteger(r.total)?r.total:N,N);let c=0,w=0,b=0,d=0;const st=[],answers=[];if(!Array.isArray(r.selected))r.selected=[];for(let q=0;q<total;q++){const marked=Array.isArray(r.selected[q])?r.selected[q].filter(x=>Number.isInteger(x)&&x>=0&&x<4):[];r.selected[q]=[...new Set(marked)].sort();const expected=(Array.isArray(key[q])?key[q]:[key[q]]).filter(Number.isInteger);if(!marked.length){b++;w++;st.push('b');answers.push('-')}else if(marked.length>1){d++;w++;st.push('d');answers.push('*')}else if(expected.includes(marked[0])){c++;st.push('c');answers.push(L[marked[0]])}else{w++;st.push('w');answers.push(L[marked[0]])}}Object.assign(r,{answers,status:st,correct:c,wrong:w,blank:b,double:d,total})}
 
 async function scanFile(file){const fd=new FormData();fd.append('file',file,file.name);fd.append('n',N);fd.append('key',JSON.stringify(key.slice(0,N)));
  try{const r=await fetch('/api/scan',{method:'POST',body:fd});const j=await r.json();if(!r.ok)throw new Error(j.error||'Server error');return j.results}
@@ -97,7 +104,21 @@ function renderList(){const el=$('list');el.innerHTML='';$('resc').hidden=!resul
   d.querySelector('.score').textContent=r.correct+' / '+total;
   d.querySelector('.st').innerHTML='<b>'+r.file.replace(/[<>&]/g,'')+'</b> · Scanned <b>'+total+'</b> · Correct <b>'+r.correct+'</b> · Wrong <b>'+r.wrong+'</b> · Blank <b>'+r.blank+'</b> · Double <b>'+r.double+'</b>';
   const detail=d.querySelector('.answers');
-  for(let q=0;q<total;q++){const marked=Array.isArray(r.selected?.[q])?r.selected[q]:[];const expected=(Array.isArray(key[q])?key[q]:[key[q]]).filter(Number.isInteger);const label=marked.length?marked.map(i=>L[i]).join('+'):'Blank';const expectedLabel=expected.map(i=>L[i]).join('/')||'-';const correct=marked.length===1&&expected.includes(marked[0]);const s=document.createElement('span');s.className='qanswer';s.innerHTML='<b>Q'+(q+1)+'</b><br><span class="right">Right: '+expectedLabel+'</span><br><span class="your '+(correct?'ok':'bad')+'">Your: '+label+'</span>';detail.append(s)}
+  for(let q=0;q<total;q++){
+   const marked=Array.isArray(r.selected?.[q])?r.selected[q]:[];
+   const expected=(Array.isArray(key[q])?key[q]:[key[q]]).filter(Number.isInteger);
+   const label=marked.length?marked.map(i=>L[i]).join(' + '):'Blank';
+   const expectedLabel=expected.map(i=>L[i]).join('/')||'-';
+   const correct=marked.length===1&&expected.includes(marked[0]);
+   const card=document.createElement('div');card.className='qanswer';
+   const heading=document.createElement('b');heading.textContent='Q'+(q+1);card.append(heading);
+   const right=document.createElement('div');right.className='right';right.textContent='Right: '+expectedLabel;card.append(right);
+   const your=document.createElement('div');your.className='your '+(correct?'ok':'bad');your.textContent='Your: '+label;card.append(your);
+   const edit=document.createElement('div');edit.className='answer-edit';
+   L.forEach((option,i)=>{const btn=document.createElement('button');btn.type='button';btn.textContent=option;btn.className=marked.includes(i)?'selected':'';btn.setAttribute('aria-label','Question '+(q+1)+' option '+option);btn.title='Tap to select or deselect';btn.onclick=()=>{const current=Array.isArray(r.selected[q])?r.selected[q]:[];r.selected[q]=current.includes(i)?current.filter(x=>x!==i):[...current,i].sort();score(r);renderList()};edit.append(btn)});
+   const clear=document.createElement('button');clear.type='button';clear.className='clear';clear.textContent='Clear';clear.onclick=()=>{r.selected[q]=[];score(r);renderList()};edit.append(clear);
+   card.append(edit);detail.append(card);
+  }
   if(/[?*]/.test(r.roll||''))Object.assign(d.querySelector('.warn'),{hidden:false,textContent:'The roll number could not be read completely (? = no bubble, * = multiple bubbles). Correct it manually.'});
   let img=null;d.querySelector('.tg').onclick=()=>{if(img){img.remove();img=null;return}img=new Image();img.src=r.overlay;d.append(img)};
   d.querySelector('.rm').onclick=()=>{results=results.filter(x=>x!==r);renderList()};el.append(d)});
