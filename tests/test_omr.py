@@ -33,6 +33,25 @@ class OMRCoreTests(unittest.TestCase):
         cv2.circle(tinted, (12, 12), 4, 55, -1)
         self.assertTrue(omr._portrait_marked(tinted, 12, 12, 140))
 
+    def test_four_corner_grids_have_separate_25_question_blocks_and_six_digit_roll(self):
+        answers = omr._four_corner_answer_grid()
+        roll = omr._four_corner_roll_grid()
+        self.assertEqual(answers.shape, (200, 2))
+        self.assertEqual(roll.shape, (6, 10, 2))
+        self.assertLess(answers[0, 0], answers[100, 0])
+        self.assertLess(answers[0, 1], answers[4 * 4, 1])
+        self.assertTrue(np.all(np.diff(roll[0, :, 1]) > 0))
+        self.assertTrue(np.all(np.diff(roll[:, 0, 0]) > 0))
+
+    def test_box_marking_uses_fifteen_percent_ink_and_ignores_red_print(self):
+        red_channel = np.full((60, 60), 220, dtype=np.uint8)
+        # Red printed bubble outline remains bright in the red channel.
+        cv2.ellipse(red_channel, (30, 30), (10, 8), 0, 0, 360, 205, 1)
+        self.assertLess(omr._box_mark_fraction(red_channel, 30, 30, 220, 11, 8), .15)
+        # A solid pen mark exceeding 15% of the inner four-corner cell is detected.
+        cv2.rectangle(red_channel, (26, 26), (34, 34), 25, -1)
+        self.assertGreaterEqual(omr._box_mark_fraction(red_channel, 30, 30, 220, 11, 8), .15)
+
     def test_answer_scoring_handles_correct_wrong_blank_and_double(self):
         gray = np.full((1400, 1500), 245, dtype=np.uint8)
         points = []
