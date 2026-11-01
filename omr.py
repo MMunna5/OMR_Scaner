@@ -207,11 +207,23 @@ def _mark_fraction(R, x, y, base):
 
 
 def _portrait_marked(R, x, y, base):
-    """Detect a dark filled bubble while ignoring printed option text and paper tint."""
-    patch = _patch(R, x, y, 9)
-    mean = float(patch.mean())
-    dark_fraction = float((patch < min(75, base * .65)).mean())
-    return mean < min(40, base * .38) and dark_fraction >= .45
+    """Detect ink inside a portrait-layout bubble, independently of its printed outline."""
+    patch = _patch(R, x, y, 9).astype(np.float32)
+    yy, xx = np.ogrid[-9:10, -9:10]
+    radius = np.sqrt(xx * xx + yy * yy)
+    # Ignore the printed bubble border: only inspect its central fill area.
+    core = patch[radius <= 5]
+    ring = patch[(radius >= 7) & (radius <= 9)]
+    if not core.size or not ring.size:
+        return False
+    background = float(np.median(ring))
+    threshold = min(145.0, max(55.0, float(base) * .72))
+    dark_fraction = float((core < threshold).mean())
+    core_mean = float(core.mean())
+    # A real mark darkens the centre; an unfilled printed circle only darkens
+    # the outer ring. Relative contrast also handles tinted/uneven paper.
+    contrast = background - core_mean
+    return dark_fraction >= .22 and contrast >= max(12.0, background * .16)
 
 
 def _portrait_points(width=1000, height=1400):
