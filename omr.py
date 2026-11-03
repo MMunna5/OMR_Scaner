@@ -313,20 +313,23 @@ def _standard_grid(R):
         raise ScanError('Could not locate the answer grid.')
     height, width = R.shape
     c = circles[0]
-    c = c[(c[:, 0] > .45 * width) & (c[:, 0] < .98 * width) &
-          (c[:, 1] > .22 * height) & (c[:, 1] < .90 * height)]
-    if len(c) < 100:
-        raise ScanError('Could not locate enough answer bubbles.')
-    left = c[(c[:, 0] > .48 * width) & (c[:, 0] < .63 * width)]
-    right = c[(c[:, 0] > .68 * width) & (c[:, 0] < .83 * width)]
-    if len(left) < 40 or len(right) < 40:
-        raise ScanError('Could not separate the two answer option blocks.')
-    left_x = _fit_axis(left[:, 0], 4, .48 * width, .63 * width,
-                        .025 * width, .05 * width)
-    right_x = _fit_axis(right[:, 0], 4, .68 * width, .83 * width,
-                         .025 * width, .05 * width)
-    ys = _fit_axis(c[:, 1], 25, .24 * height, .90 * height,
-                   .018 * height, .04 * height)
+    # The leftmost option column can shift left on angled photos; the
+    # rightmost column can shift beyond 83% after perspective correction.
+    # Keep the answer-grid search separate from the roll-number area.
+    c = c[(c[:, 0] > .43 * width) & (c[:, 0] < .89 * width) &
+          (c[:, 1] > .24 * height) & (c[:, 1] < .86 * height)]
+    if len(c) < 70:
+        raise ScanError('Could not locate enough answer bubbles. Retake the photo with the full answer grid visible.')
+    left = c[(c[:, 0] > .43 * width) & (c[:, 0] < .65 * width)]
+    right = c[(c[:, 0] > .66 * width) & (c[:, 0] < .89 * width)]
+    if len(left) < 25 or len(right) < 25:
+        raise ScanError('Could not separate the two answer option blocks. Check that the whole sheet is visible.')
+    left_x = _fit_axis(left[:, 0], 4, .43 * width, .65 * width,
+                       .025 * width, .06 * width)
+    right_x = _fit_axis(right[:, 0], 4, .66 * width, .89 * width,
+                         .025 * width, .06 * width)
+    ys = _fit_axis(c[:, 1], 25, .24 * height, .86 * height,
+                   .016 * height, .04 * height)
     points = []
     for columns in (left_x, right_x):
         for row in ys:
@@ -533,14 +536,15 @@ def scan(img, n, key):
                     blank=bl, double=db, total=n, overlay='data:image/jpeg;base64,' +
                     base64.b64encode(buf).decode())
 
-    # The registration marks rectify the complete sheet into a stable coordinate
-    # system. Each answer section and the roll-number grid is then measured from
-    # its own four corners; Hough-circle centres are deliberately not used.
-    gray = cv2.cvtColor(w, cv2.COLOR_BGR2GRAY)
-    pts, inner, ans, st, cor, wr, bl, db, selected = _scan_box_answers(
-        R, _four_corner_answer_grid(), n, key
+    # Detect the printed bubble centres from the rectified image. This adapts
+    # to small scale/perspective differences between phone photos instead of
+    # assuming that every camera image lands on identical hard-coded coordinates.
+    points = _standard_grid(R)
+    roll_points = _standard_roll_grid(R)
+    pts, inner, ans, st, cor, wr, bl, db, selected = _scan_answers(
+        R, points, n, key, 1500
     )
-    roll, roll_pts, roll_selected = _read_box_roll(R, _four_corner_roll_grid())
+    roll, roll_pts, roll_selected = _read_box_roll(R, roll_points)
 
     ov = w.copy()
     for q in range(n):
